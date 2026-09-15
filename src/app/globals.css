@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-canvas bg-mist-200 bg-fixed text-ink-900 antialiased tabular-nums;
+  }
+  ::selection {
+    @apply bg-mims-200 text-mims-900;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-ink-300/60;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-300;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.01em] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-mims-500 focus-visible:ring-offset-2 focus-visible:ring-offset-mist-200 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-mims-700 text-white shadow-card hover:bg-mims-800 hover:shadow-hover active:bg-mims-900;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-mims-700 shadow-soft ring-1 ring-inset ring-mims-100 hover:bg-mims-50 hover:ring-mims-200;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-mims-700 hover:bg-mims-50;
+  }
+  .card {
+    @apply rounded-2xl bg-white shadow-card ring-1 ring-black/[0.03] transition-all duration-300 ease-out;
+  }
+  .input {
+    @apply w-full rounded-xl border border-ink-300/60 bg-white px-4 py-2.5 text-sm text-ink-900 placeholder:text-ink-500 shadow-sm transition duration-150 hover:border-mims-300 focus:border-mims-500 focus:outline-none focus:ring-2 focus:ring-mims-100;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-700;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ring-black/[0.04];
+  }
+}
+
+.bg-noise {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
