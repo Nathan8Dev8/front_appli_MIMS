@@ -26,24 +26,32 @@ export async function enablePushNotifications(): Promise<{ success: boolean; rea
   if (getPushSupportState() === 'unsupported') return { success: false, reason: 'unsupported' };
   if (!VAPID_PUBLIC_KEY) return { success: false, reason: 'not-configured' };
 
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return { success: false, reason: permission };
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return { success: false, reason: permission };
 
-  const registration = await navigator.serviceWorker.ready;
-  const subscription =
-    (await registration.pushManager.getSubscription()) ??
-    (await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-    }));
+    const registration = await navigator.serviceWorker.ready;
+    const subscription =
+      (await registration.pushManager.getSubscription()) ??
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      }));
 
-  const json = subscription.toJSON();
-  await api.post('/push/subscribe', {
-    endpoint: json.endpoint,
-    keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
-  });
+    const json = subscription.toJSON();
+    await api.post('/push/subscribe', {
+      endpoint: json.endpoint,
+      keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
+    });
 
-  return { success: true };
+    return { success: true };
+  } catch (err) {
+    // Ne jamais laisser une exception non gérée remonter jusqu'à l'appelant :
+    // le bouton doit toujours pouvoir afficher un message, même en cas de
+    // souci réseau ou d'API push indisponible.
+    console.error('[push] échec de l\'activation des notifications :', err);
+    return { success: false, reason: 'error' };
+  }
 }
 
 export async function disablePushNotifications(): Promise<void> {

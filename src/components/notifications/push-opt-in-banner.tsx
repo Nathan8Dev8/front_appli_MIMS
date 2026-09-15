@@ -37,11 +37,24 @@ export function PushOptInBanner() {
     if (res.success) {
       toast.success('Notifications activées sur cet appareil !');
       setVisible(false);
-    } else if (res.reason === 'denied') {
-      toast.error('Notifications refusées. Tu peux les réactiver dans les réglages de ton navigateur.');
-      setVisible(false);
-    } else {
-      toast.error("Impossible d'activer les notifications pour le moment.");
+      return;
+    }
+
+    switch (res.reason) {
+      case 'denied':
+        toast.error('Notifications refusées. Tu peux les réactiver dans les réglages de ton navigateur.');
+        setVisible(false);
+        break;
+      case 'unsupported':
+        toast.error("Ton navigateur ne prend pas en charge les notifications push.");
+        setVisible(false);
+        break;
+      case 'not-configured':
+        // Erreur de configuration côté app, pas côté utilisateur — inutile de la lui présenter comme si c'était sa faute.
+        toast.error("Les notifications ne sont pas configurées sur ce déploiement (clé VAPID manquante).");
+        break;
+      default:
+        toast.error("Impossible d'activer les notifications pour le moment. Réessaie dans un instant.");
     }
   }
 

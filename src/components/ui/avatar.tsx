@@ -26,7 +26,7 @@ export function Avatar({
         className={`relative overflow-hidden rounded-full ring-2 ring-white shadow-soft ${className}`}
         style={{ width: px, height: px }}
       >
-        <Image src={url} alt={`${firstName ?? ''} ${lastName ?? ''}`} fill sizes={`${px}px`} className="object-cover" />
+        <Image src={url} alt={`${firstName ?? ''} ${lastName ?? ''}`} fill sizes={`${px}px`} className="object-cover" unoptimized />
       </div>
     );
   }
