@@ -31,7 +31,7 @@ export default function AnnoncesPage() {
       <PageHeader
         eyebrow="Le mot du bureau"
         title="Annonces"
-        description="Les messages importants du Pasteur, de la Présidence et du secrétariat — à ne pas manquer."
+        description="Les messages du pasteur, de la présidence et du secrétariat."
         actions={
           canPublish && (
             <button className="btn-primary" onClick={() => setCreateOpen(true)}>
@@ -46,8 +46,8 @@ export default function AnnoncesPage() {
       ) : !announcements?.length ? (
         <EmptyState
           icon={<MegaphoneIcon />}
-          title="Aucune annonce pour le moment"
-          description="Les messages du bureau apparaîtront ici, avec une notification envoyée à tous."
+          title="Pas d'annonce pour l'instant"
+          description="Quand le bureau publie un message, il apparaît ici et tout le monde est prévenu."
         />
       ) : (
         <div className="space-y-5">
@@ -117,10 +117,10 @@ function CreateAnnouncementModal({ open, onClose }: { open: boolean; onClose: ()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      toast.success('Annonce publiée — toute la communauté a été notifiée.');
+      toast.success('Annonce publiée, tout le monde est prévenu ✅');
       handleClose();
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Publication impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "L'annonce n'a pas pu être publiée."),
   });
 
   function handleClose() {
@@ -131,7 +131,7 @@ function CreateAnnouncementModal({ open, onClose }: { open: boolean; onClose: ()
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Nouvelle annonce" description="Publiée immédiatement, avec une notification envoyée à tous les membres.">
+    <Modal open={open} onClose={handleClose} title="Nouvelle annonce" description="Elle est publiée tout de suite et chaque membre reçoit une notification.">
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -151,7 +151,7 @@ function CreateAnnouncementModal({ open, onClose }: { open: boolean; onClose: ()
           <label className="label">Pièce jointe (optionnel)</label>
           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300/60 py-6 text-sm font-medium text-ink-500 hover:border-mims-400 hover:text-mims-700">
             <UploadIcon width={18} height={18} />
-            {file ? file.name : 'Image ou tout autre fichier'}
+            {file ? file.name : 'Choisis une image ou un fichier'}
             <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
         </div>
@@ -159,7 +159,7 @@ function CreateAnnouncementModal({ open, onClose }: { open: boolean; onClose: ()
           <button type="button" className="btn-ghost" onClick={handleClose}>Annuler</button>
           <button type="submit" className="btn-primary" disabled={!title || !content || create.isPending}>
             {create.isPending && <Spinner />}
-            Publier et notifier
+            Publier l'annonce
           </button>
         </div>
       </form>

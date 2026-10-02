@@ -13,13 +13,7 @@ import { CameraIcon, ShieldIcon, SparkleIcon } from '@/components/ui/icons';
 import { ROLE_LABELS } from '@/store/auth-store';
 import { formatDate } from '@/lib/format';
 import type { Me } from '@/hooks/use-me';
-
-const CHANNELS = [
-  { value: 'PUSH', label: 'Notifications de l’application' },
-  { value: 'WHATSAPP', label: 'WhatsApp' },
-  { value: 'SMS', label: 'SMS' },
-  { value: 'EMAIL', label: 'E-mail' },
-];
+import { PushSettings } from '@/components/notifications/push-settings';
 
 export default function MonProfilPage() {
   const { data: me, isLoading } = useMe();
@@ -43,10 +37,10 @@ export default function MonProfilPage() {
     onSuccess: (updated) => {
       mergeIntoMeCache(updated);
       updateMember({ firstName: updated.firstName, lastName: updated.lastName });
-      toast.success('Ton profil a été mis à jour avec succès.');
+      toast.success('Profil mis à jour ✅');
       setForm(null);
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'La mise à jour a échoué.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "La mise à jour n'a pas marché."),
   });
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -59,9 +53,9 @@ export default function MonProfilPage() {
       const updated = await api.post<Me>('/members/me/avatar', formData);
       mergeIntoMeCache(updated);
       updateMember({ avatarUrl: updated.avatarUrl });
-      toast.success('Nouvelle photo de profil enregistrée !');
+      toast.success('Nouvelle photo enregistrée ✅');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "L'envoi de la photo a échoué.");
+      toast.error(err instanceof ApiError ? err.message : "La photo n'a pas pu être envoyée.");
     } finally {
       setAvatarUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -82,8 +76,6 @@ export default function MonProfilPage() {
       email: current.email || undefined,
       address: current.address || undefined,
       birthDate: current.birthDate ? current.birthDate.slice(0, 10) : undefined,
-      whatsappActive: current.whatsappActive,
-      preferredChannel: current.preferredChannel,
     });
   }
 
@@ -100,7 +92,7 @@ export default function MonProfilPage() {
       <PageHeader
         eyebrow="Ton espace"
         title="Mon profil"
-        description="Garde tes informations à jour pour que la communauté puisse toujours te joindre — et choisis la photo qui te représente."
+        description="Garde tes infos à jour pour qu'on puisse te joindre, et choisis la photo que tu veux."
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -171,33 +163,19 @@ export default function MonProfilPage() {
               <input className="input" value={current?.address ?? ''} onChange={(e) => field('address', e.target.value)} />
             </div>
             <div>
-              <label className="label">Date de naissance</label>
+              <label className="label" htmlFor="profile-birth">Date de naissance</label>
               <input
+                id="profile-birth"
                 type="date"
                 className="input"
+                max={new Date().toISOString().slice(0, 10)}
                 value={current?.birthDate ? current.birthDate.slice(0, 10) : ''}
                 onChange={(e) => field('birthDate', e.target.value as any)}
+                required
               />
-            </div>
-            <div>
-              <label className="label">Canal préféré pour les notifications</label>
-              <select className="input" value={current?.preferredChannel ?? 'PUSH'} onChange={(e) => field('preferredChannel', e.target.value as any)}>
-                {CHANNELS.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
+              <p className="mt-1.5 text-xs text-ink-500">Obligatoire : le groupe te souhaitera ton anniversaire ce jour-là 🎂</p>
             </div>
           </div>
-
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-mist-200 px-4 py-3">
-            <input
-              type="checkbox"
-              checked={current?.whatsappActive ?? false}
-              onChange={(e) => field('whatsappActive', e.target.checked as any)}
-              className="h-4 w-4 rounded border-ink-300 text-mims-700 focus:ring-mims-500"
-            />
-            <span className="text-sm text-ink-700">Je suis joignable sur WhatsApp au numéro renseigné ci-dessus</span>
-          </label>
 
           <div className="flex justify-end gap-3 border-t border-ink-300/30 pt-5">
             {form && (
@@ -211,6 +189,12 @@ export default function MonProfilPage() {
             </button>
           </div>
         </form>
+      </div>
+
+      <div className="card mt-6 animate-fade-up p-6 sm:p-8">
+        <h2 className="mb-1 font-display text-lg font-semibold text-ink-900">Notifications</h2>
+        <p className="mb-4 text-sm text-ink-500">Les messages du groupe arrivent sur ton écran, même appli fermée. À activer sur chaque appareil que tu utilises.</p>
+        <PushSettings />
       </div>
 
       <div className="mt-6">
@@ -228,18 +212,18 @@ function SecurityCard() {
   const mutation = useMutation({
     mutationFn: () => api.post('/auth/change-password', { currentPassword, newPassword }),
     onSuccess: () => {
-      toast.success('Mot de passe mis à jour.');
+      toast.success('Mot de passe changé ✅');
       setCurrentPassword('');
       setNewPassword('');
       setConfirm('');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'La mise à jour a échoué.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "La mise à jour n'a pas marché."),
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (newPassword.length < 8) return toast.error('8 caractères minimum pour le nouveau mot de passe.');
-    if (newPassword !== confirm) return toast.error('La confirmation ne correspond pas.');
+    if (newPassword.length < 8) return toast.error('Ton nouveau mot de passe doit faire au moins 8 caractères.');
+    if (newPassword !== confirm) return toast.error('Les deux mots de passe ne sont pas identiques.');
     mutation.mutate();
   }
 
@@ -247,7 +231,7 @@ function SecurityCard() {
     <form onSubmit={handleSubmit} className="card animate-fade-up p-8">
       <div className="mb-5 flex items-center gap-2">
         <ShieldIcon width={18} height={18} className="text-mims-700" />
-        <h2 className="font-display text-lg font-semibold text-ink-900">Sécurité du compte</h2>
+        <h2 className="font-display text-lg font-semibold text-ink-900">Mot de passe</h2>
       </div>
       <div className="grid gap-5 sm:grid-cols-3">
         <div>
@@ -266,7 +250,7 @@ function SecurityCard() {
       <div className="mt-5 flex justify-end">
         <button type="submit" className="btn-secondary" disabled={mutation.isPending}>
           {mutation.isPending && <Spinner />}
-          Mettre à jour le mot de passe
+          Changer le mot de passe
         </button>
       </div>
     </form>

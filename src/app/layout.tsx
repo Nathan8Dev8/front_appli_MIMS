@@ -21,11 +21,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Jeunes MIMS — Notre communauté, notre élan',
+    default: 'Jeunes MIMS',
     template: '%s · Jeunes MIMS',
   },
   description:
-    "L'application officielle des Jeunes MIMS : cotisations, documents, événements, sondages, quiz et vie de communauté, réunis dans un seul espace.",
+    "L'appli des Jeunes MIMS : cotisations, documents, événements, sondages et quiz au même endroit.",
   applicationName: 'Jeunes MIMS',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Jeunes MIMS' },
   icons: {
@@ -35,9 +35,14 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
   },
-  // Empêche les extensions de type "Dark Reader" de réinverser nos couleurs
-  // (l'app est volontairement claire uniquement, cf. color-scheme ci-dessous).
-  other: { 'darkreader-lock': '' },
+  other: {
+    // Empêche les extensions de type "Dark Reader" de réinverser nos couleurs
+    // (l'app est volontairement claire uniquement, cf. color-scheme ci-dessous).
+    'darkreader-lock': '',
+    // Équivalent standardisé de appleWebApp.capable, réclamé par Chrome
+    // (la balise apple-* reste nécessaire pour Safari/iOS).
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export const viewport: Viewport = {
@@ -45,7 +50,8 @@ export const viewport: Viewport = {
   colorScheme: 'light',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // Pas de blocage du zoom (accessibilité) ; les champs font 16px sur mobile pour éviter le zoom auto d'iOS.
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

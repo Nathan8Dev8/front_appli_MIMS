@@ -29,21 +29,22 @@ export default function NouveauMotDePassePage() {
     e.preventDefault();
     setError(null);
     if (newPassword.length < 8) {
-      setError('Le nouveau mot de passe doit contenir au moins 8 caractères.');
+      setError('Ton mot de passe doit faire au moins 8 caractères.');
       return;
     }
     if (newPassword !== confirm) {
-      setError('La confirmation ne correspond pas au nouveau mot de passe.');
+      setError('Les deux mots de passe ne sont pas identiques.');
       return;
     }
     setLoading(true);
     try {
       await api.post('/auth/change-password', { currentPassword, newPassword });
       clearMustChangePassword();
-      toast.success('Mot de passe mis à jour. Bienvenue !');
-      router.replace('/tableau-de-bord');
+      toast.success('Mot de passe changé, tu peux y aller ✅');
+      // Première connexion : on enchaîne sur l'écran de bienvenue (profil, notifications, règlement).
+      router.replace('/bienvenue');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Impossible de mettre à jour le mot de passe.');
+      setError(err instanceof ApiError ? err.message : "Le mot de passe n'a pas pu être changé.");
     } finally {
       setLoading(false);
     }
@@ -58,10 +59,10 @@ export default function NouveauMotDePassePage() {
             <ShieldIcon />
           </div>
           <h1 className="font-display text-3xl font-semibold tracking-tight text-mims-900">
-            Sécurise ton compte
+            Choisis ton mot de passe
           </h1>
           <p className="mt-2 text-sm text-ink-700">
-            Pour ta première connexion, choisis un mot de passe personnel que toi seul connais.
+            C'est ta première connexion. Remplace le mot de passe temporaire par un mot de passe à toi, que personne d'autre ne connaît.
           </p>
 
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
@@ -74,7 +75,7 @@ export default function NouveauMotDePassePage() {
               <input id="new" type="password" className="input" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} />
             </div>
             <div>
-              <label className="label" htmlFor="confirm">Confirme ton mot de passe</label>
+              <label className="label" htmlFor="confirm">Répète le nouveau mot de passe</label>
               <input id="confirm" type="password" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} />
             </div>
 
@@ -82,7 +83,7 @@ export default function NouveauMotDePassePage() {
 
             <button type="submit" className="btn-primary w-full" disabled={loading}>
               {loading && <Spinner />}
-              Valider et continuer
+              Enregistrer et continuer
             </button>
           </form>
         </div>

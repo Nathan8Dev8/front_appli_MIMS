@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '@/lib/api-client';
@@ -8,15 +9,15 @@ import { useMe, hasRole } from '@/hooks/use-me';
 import { RequireRole } from '@/components/auth/require-role';
 import { PageHeader } from '@/components/ui/page-header';
 import { Avatar } from '@/components/ui/avatar';
-import { Badge, MemberStatusBadge } from '@/components/ui/badge';
+import { Badge, DueStatusBadge, MemberStatusBadge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PlusIcon, SearchIcon } from '@/components/ui/icons';
 import { STAFF_ROLES } from '@/lib/nav';
 import { ROLE_LABELS } from '@/store/auth-store';
-import { formatDate } from '@/lib/format';
-import type { MemberSummary } from '@/lib/types';
+import { formatDate, formatFcfa, formatMonth } from '@/lib/format';
+import type { EventKind, MemberSummary, MonthlyDue } from '@/lib/types';
 
 export default function MembresPage() {
   return (
@@ -45,9 +46,9 @@ function MembresContent() {
   return (
     <div>
       <PageHeader
-        eyebrow="Communauté"
+        eyebrow="Le groupe"
         title="Membres"
-        description="Le registre vivant de notre communauté — identité, statut et engagement de chacun."
+        description="La liste des membres : identité, statut et rôle de chacun."
         actions={
           canCreateMember && (
             <button className="btn-primary" onClick={() => setCreateOpen(true)}>
@@ -57,7 +58,7 @@ function MembresContent() {
         }
       />
 
-      <div className="relative mb-6 max-w-sm">
+      <div className="relative mb-6 sm:max-w-sm">
         <SearchIcon width={18} height={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500" />
         <input
           className="input pl-11"
@@ -70,7 +71,7 @@ function MembresContent() {
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-mims-700" /></div>
       ) : !members?.length ? (
-        <EmptyState title="Aucun membre trouvé" description="Ajuste ta recherche ou ajoute un nouveau membre." />
+        <EmptyState title="Aucun membre trouvé" description="Essaie une autre recherche ou ajoute un nouveau membre." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {members.map((m) => (
@@ -83,8 +84,9 @@ function MembresContent() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-ink-900">{m.firstName} {m.lastName}</p>
                 <p className="truncate text-xs text-ink-500">{m.phone}</p>
-                <div className="mt-2 flex items-center gap-1.5">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <MemberStatusBadge status={m.status} />
+                  {m.onboarding && m.onboarding.status !== 'TERMINE' && m.status === 'ACTIF' && <Badge variant="gold">Nouveau</Badge>}
                   {m.roles?.filter((r) => r.role.code !== 'MEMBRE').map((r) => (
                     <Badge key={r.role.code} variant="info">{ROLE_LABELS[r.role.code] ?? r.role.label}</Badge>
                   ))}
@@ -121,9 +123,9 @@ function CreateMemberModal({
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
       setCredentials(res);
-      toast.success('Membre ajouté avec succès !');
+      toast.success('Membre ajouté ✅');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "L'ajout a échoué."),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le membre n'a pas pu être ajouté."),
   });
 
   function handleClose() {
@@ -133,15 +135,19 @@ function CreateMemberModal({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Ajouter un membre" description="Un compte sera créé automatiquement avec un mot de passe temporaire à changer à la première connexion.">
+    <Modal open={open} onClose={handleClose} title="Ajouter un membre" description="Un compte est créé avec un mot de passe temporaire. La personne le changera à sa première connexion.">
       {credentials ? (
         <div className="space-y-4">
           <div className="rounded-xl bg-mims-50 p-4">
-            <p className="text-sm text-ink-700">Transmets ces identifiants au nouveau membre :</p>
+            <p className="text-sm text-ink-700">Envoie-lui ces identifiants :</p>
             <p className="mt-2 font-mono text-sm text-mims-800">Identifiant : <b>{credentials.username}</b></p>
             <p className="font-mono text-sm text-mims-800">Mot de passe : <b>{credentials.temporaryPassword}</b></p>
+            <p className="mt-3 text-xs text-ink-500">
+              À sa première connexion, il choisira son mot de passe puis l'appli le guidera : profil, notifications, règlement.
+            </p>
           </div>
-          <button className="btn-primary w-full" onClick={handleClose}>Terminé</button>
+          <InviteActions message={inviteMessage(form.firstName, credentials)} />
+          <button className="btn-ghost w-full" onClick={handleClose}>Fermer</button>
         </div>
       ) : (
         <form
@@ -197,51 +203,188 @@ function CreateMemberModal({
   );
 }
 
+function inviteMessage(firstName: string, c: { username: string; temporaryPassword: string }) {
+  const url = typeof window !== 'undefined' ? window.location.origin : '';
+  return [
+    `Bienvenue chez les Jeunes MIMS, ${firstName} ! 👋`,
+    `Ton espace membre : ${url}`,
+    `Identifiant : ${c.username}`,
+    `Mot de passe provisoire : ${c.temporaryPassword}`,
+    "Tu choisiras ton propre mot de passe à la première connexion. Ajoute l'appli à ton écran d'accueil pour recevoir les notifications.",
+  ].join('\n');
+}
+
+/** Partage natif du téléphone (WhatsApp, SMS… au choix de l'expéditeur) ou copie du message. */
+function InviteActions({ message }: { message: string }) {
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share;
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {canShare && (
+        <button className="btn-primary" onClick={() => navigator.share({ text: message }).catch(() => undefined)}>
+          Partager l'invitation
+        </button>
+      )}
+      <button
+        className={canShare ? 'btn-secondary' : 'btn-primary sm:col-span-2'}
+        onClick={() =>
+          navigator.clipboard
+            .writeText(message)
+            .then(() => toast.success("Message copié, colle-le où tu veux ✅"))
+            .catch(() => toast.error("La copie n'a pas marché, recopie les identifiants à la main."))
+        }
+      >
+        Copier le message
+      </button>
+    </div>
+  );
+}
+
+const STATUS_LABELS: Record<string, string> = { ACTIF: 'Actif', INACTIF: 'Inactif', SUSPENDU: 'Suspendu', DEMISSIONNAIRE: 'Démissionnaire' };
+
+interface AttendanceRow {
+  attended: boolean | null;
+  event: { id: string; title: string; kind: EventKind; startsAt: string };
+}
+
 function MemberDetailModal({ member, onClose, isAdmin }: { member: MemberSummary | null; onClose: () => void; isAdmin: boolean }) {
   const queryClient = useQueryClient();
-  const statuses = ['ACTIF', 'INACTIF', 'SUSPENDU', 'DEMISSIONNAIRE'];
+  const { data: me } = useMe();
+  const canSeeDues = hasRole(me, ['SECRETAIRE', 'TRESORIER', 'PRESIDENT_ADMIN']);
+
+  const { data: dues } = useQuery({
+    queryKey: ['dues', 'member', member?.id],
+    queryFn: () => api.get<MonthlyDue[]>(`/dues/member/${member!.id}`),
+    enabled: !!member && canSeeDues,
+  });
+  const { data: attendance } = useQuery({
+    queryKey: ['events', 'attendance', member?.id],
+    queryFn: () => api.get<AttendanceRow[]>(`/events/attendance/${member!.id}`),
+    enabled: !!member,
+  });
+
+  const remind = useMutation({
+    mutationFn: () => api.post(`/onboarding/${member!.id}/remind`),
+    onSuccess: () => toast.success('Rappel envoyé ✅'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le rappel n'est pas parti."),
+  });
 
   const setStatus = useMutation({
     mutationFn: (status: string) => api.patch(`/members/${member!.id}/status`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
-      toast.success('Statut mis à jour.');
+      toast.success('Statut mis à jour ✅');
       onClose();
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Mise à jour impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le statut n'a pas pu être changé."),
   });
 
   if (!member) return null;
 
+  // Comme côté serveur : un mois non soldé devient une dette le lendemain de son 2e dimanche (dueDate).
+  const unpaid = (dues ?? []).filter(
+    (d) => (d.status === 'A_PAYER' || d.status === 'PARTIEL') && new Date(d.dueDate).getTime() + 86_400_000 <= Date.now(),
+  );
+  const debt = unpaid.reduce((s, d) => s + d.balance, 0);
+  const present = (attendance ?? []).filter((a) => a.attended).length;
+
   return (
-    <Modal open={!!member} onClose={onClose} title={`${member.firstName} ${member.lastName}`}>
+    <Modal open={!!member} onClose={onClose} title={`${member.firstName} ${member.lastName}`} maxWidth="max-w-2xl">
       <div className="flex items-center gap-4">
         <Avatar firstName={member.firstName} lastName={member.lastName} avatarUrl={member.avatarUrl} size="lg" />
-        <div>
-          <p className="text-sm text-ink-700">{member.phone}</p>
-          {member.email && <p className="text-sm text-ink-500">{member.email}</p>}
-          <p className="mt-1 text-xs text-ink-500">Membre depuis le {formatDate(member.joinedAt)}</p>
+        <div className="min-w-0">
+          <a href={`tel:${member.phone}`} className="text-sm font-semibold text-mims-700">{member.phone}</a>
+          {member.email && <p className="truncate text-sm text-ink-500">{member.email}</p>}
+          <p className="mt-1 text-xs text-ink-500">{member.memberCode} · membre depuis le {formatDate(member.joinedAt)}</p>
+          <p className="text-xs text-ink-500">
+            {member.birthDate ? `🎂 ${formatDate(member.birthDate, { day: 'numeric', month: 'long', timeZone: 'UTC' })}` : 'Date de naissance pas encore renseignée'}
+          </p>
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-1.5">
-        {member.roles?.map((r) => <Badge key={r.role.code} variant="info">{ROLE_LABELS[r.role.code] ?? r.role.label}</Badge>)}
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        <MemberStatusBadge status={member.status} />
+        {member.roles?.filter((r) => r.role.code !== 'MEMBRE').map((r) => <Badge key={r.role.code} variant="info">{ROLE_LABELS[r.role.code] ?? r.role.label}</Badge>)}
+      </div>
+
+      {member.onboarding && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-mist-200/70 p-4">
+          <div>
+            <p className="label !mb-0.5">Intégration</p>
+            <p className="text-sm text-ink-700">
+              {member.onboarding.status === 'TERMINE'
+                ? member.onboarding.completedAt
+                  ? `Règlement accepté le ${formatDate(member.onboarding.completedAt)}`
+                  : 'Terminée'
+                : "Pas encore terminée : n'a pas accepté le règlement"}
+            </p>
+          </div>
+          {isAdmin && member.onboarding.status !== 'TERMINE' && (
+            <button className="btn-secondary !px-4 !py-2 text-xs" onClick={() => remind.mutate()} disabled={remind.isPending}>
+              {remind.isPending && <Spinner />} Relancer
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {canSeeDues && (
+          <div className="rounded-2xl bg-mist-200/70 p-4">
+            <p className="label !mb-1">Cotisations</p>
+            {dues === undefined ? (
+              <Spinner className="h-5 w-5 text-mims-700" />
+            ) : (
+              <>
+                <p className={`font-display text-xl font-semibold ${debt ? 'text-rose-600' : 'text-emerald-600'}`}>{debt ? formatFcfa(debt) : 'À jour'}</p>
+                <p className="text-xs text-ink-500">{unpaid.length ? `${unpaid.length} mois en retard` : `${dues.length} mois suivis`}</p>
+                <ul className="mt-3 max-h-40 space-y-1.5 overflow-y-auto pr-1">
+                  {dues.slice(0, 12).map((d) => (
+                    <li key={d.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="capitalize text-ink-700">{formatMonth(d.dueMonth)}</span>
+                      <DueStatusBadge status={d.status} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+        <div className="rounded-2xl bg-mist-200/70 p-4">
+          <p className="label !mb-1">Présences</p>
+          {attendance === undefined ? (
+            <Spinner className="h-5 w-5 text-mims-700" />
+          ) : (
+            <>
+              <p className="font-display text-xl font-semibold text-ink-900">{present} / {attendance.length}</p>
+              <p className="text-xs text-ink-500">réunions et activités pointées</p>
+              <ul className="mt-3 max-h-40 space-y-1.5 overflow-y-auto pr-1">
+                {attendance.slice(0, 12).map((a) => (
+                  <li key={a.event.id} className="flex items-center justify-between gap-2 text-xs">
+                    <Link href={`/evenements/${a.event.id}`} className="min-w-0 truncate text-ink-700 hover:text-mims-700">
+                      {formatDate(a.event.startsAt)} · {a.event.title}
+                    </Link>
+                    <Badge variant={a.attended ? 'success' : 'neutral'}>{a.attended ? 'Présent' : 'Absent'}</Badge>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       </div>
 
       {isAdmin && (
         <div className="mt-6 border-t border-ink-300/30 pt-5">
           <p className="label">Changer le statut</p>
           <div className="flex flex-wrap gap-2">
-            {statuses.map((s) => (
+            {Object.entries(STATUS_LABELS).map(([s, label]) => (
               <button
                 key={s}
                 onClick={() => setStatus.mutate(s)}
                 disabled={setStatus.isPending || member.status === s}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
                   member.status === s ? 'bg-mims-700 text-white' : 'bg-mist-200 text-ink-700 hover:bg-mims-50'
                 }`}
               >
-                {s}
+                {label}
               </button>
             ))}
           </div>

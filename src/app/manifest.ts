@@ -2,10 +2,10 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Jeunes MIMS — Notre communauté, notre élan',
+    name: 'Jeunes MIMS',
     short_name: 'Jeunes MIMS',
     description:
-      "L'application officielle des Jeunes MIMS : cotisations, documents, événements, sondages, quiz et vie de communauté, dans ta poche.",
+      "L'appli des Jeunes MIMS : cotisations, documents, événements, sondages et quiz, dans ta poche.",
     start_url: '/tableau-de-bord',
     scope: '/',
     display: 'standalone',

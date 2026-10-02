@@ -1,10 +1,15 @@
 'use client';
 
-// Les navigateurs bloquent l'audio tant qu'aucune interaction utilisateur n'a eu
-// lieu sur la page. On garde un unique AudioContext partagé, débloqué dès le
-// premier clic/touche (voir `primeNotificationSound`), puis réutilisé pour
-// jouer le carillon de notification sans jamais avoir besoin d'un fichier audio.
+/**
+ * Son de notification propre aux Jeunes MIMS (public/sounds/notification.mp3).
+ * Les navigateurs bloquent l'audio tant que l'utilisateur n'a pas touché la page :
+ * on débloque un AudioContext partagé au premier clic (`primeNotificationSound`),
+ * puis on rejoue le son décodé une fois pour toutes.
+ */
+const SOUND_URL = '/sounds/notification.mp3';
+
 let sharedContext: AudioContext | null = null;
+let soundBuffer: Promise<AudioBuffer | null> | null = null;
 
 function getContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -14,35 +19,32 @@ function getContext(): AudioContext | null {
   return sharedContext;
 }
 
-export function primeNotificationSound() {
-  getContext()?.resume().catch(() => undefined);
+function loadSound(ctx: AudioContext) {
+  soundBuffer ??= fetch(SOUND_URL)
+    .then((res) => res.arrayBuffer())
+    .then((data) => ctx.decodeAudioData(data))
+    .catch(() => {
+      soundBuffer = null; // nouvel essai au prochain appel
+      return null;
+    });
+  return soundBuffer;
 }
 
-/** Petit carillon doux à deux notes, pour signaler l'arrivée d'une notification. */
-export function playNotificationChime() {
+export function primeNotificationSound() {
   const ctx = getContext();
   if (!ctx) return;
   ctx.resume().catch(() => undefined);
+  loadSound(ctx);
+}
 
-  const now = ctx.currentTime;
-  const notes: Array<[frequency: number, start: number]> = [
-    [880, 0],
-    [1318.5, 0.1],
-  ];
-
-  for (const [frequency, offset] of notes) {
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.value = frequency;
-
-    const start = now + offset;
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(0.16, start + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.42);
-
-    oscillator.connect(gain).connect(ctx.destination);
-    oscillator.start(start);
-    oscillator.stop(start + 0.45);
-  }
+export async function playNotificationChime() {
+  const ctx = getContext();
+  if (!ctx) return;
+  await ctx.resume().catch(() => undefined);
+  const buffer = await loadSound(ctx);
+  if (!buffer) return;
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.start();
 }

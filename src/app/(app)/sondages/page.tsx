@@ -17,7 +17,9 @@ export default function SondagesPage() {
   const { data: me } = useMe();
   const canCreate = hasRole(me, ['SECRETAIRE', 'PRESIDENT_ADMIN', 'PASTEUR_ENCADREUR']);
   const queryClient = useQueryClient();
+  const canClose = hasRole(me, ['SECRETAIRE', 'PRESIDENT_ADMIN']);
   const [createOpen, setCreateOpen] = useState(false);
+  const [closing, setClosing] = useState<Poll | null>(null);
 
   const { data: polls, isLoading } = useQuery({ queryKey: ['polls'], queryFn: () => api.get<Poll[]>('/polls') });
 
@@ -25,9 +27,19 @@ export default function SondagesPage() {
     mutationFn: ({ pollId, optionId }: { pollId: string; optionId: string }) => api.post(`/polls/${pollId}/votes`, { optionId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['polls'] });
-      toast.success('Merci, ton vote a été pris en compte !');
+      toast.success('Vote enregistré ✅');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Vote impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ton vote n'a pas pu être enregistré."),
+  });
+
+  const close = useMutation({
+    mutationFn: (pollId: string) => api.post(`/polls/${pollId}/close`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['polls'] });
+      toast.success('Sondage clôturé ✅');
+      setClosing(null);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le sondage n'a pas pu être clôturé."),
   });
 
   return (
@@ -35,7 +47,7 @@ export default function SondagesPage() {
       <PageHeader
         eyebrow="Ta voix compte"
         title="Sondages"
-        description="Aide le bureau à prendre les meilleures décisions pour notre communauté."
+        description="Ton avis aide le bureau à décider."
         actions={
           canCreate && (
             <button className="btn-primary" onClick={() => setCreateOpen(true)}>
@@ -48,7 +60,7 @@ export default function SondagesPage() {
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-mims-700" /></div>
       ) : !polls?.length ? (
-        <EmptyState icon={<PollIcon />} title="Aucun sondage en cours" />
+        <EmptyState icon={<PollIcon />} title="Pas de sondage en cours" description="Quand le bureau lance un sondage, tu pourras voter ici." />
       ) : (
         <div className="grid gap-5 sm:grid-cols-2">
           {polls.map((poll) => {
@@ -81,7 +93,14 @@ export default function SondagesPage() {
                     );
                   })}
                 </div>
-                <p className="mt-3 text-xs text-ink-500">{total} vote(s) au total{poll.anonymous ? ' · anonyme' : ''}</p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-ink-500">{total} vote{total > 1 ? 's' : ''}{poll.anonymous ? ' · anonyme' : ''}</p>
+                  {canClose && poll.status === 'OUVERT' && (
+                    <button className="text-xs font-semibold text-rose-600 hover:text-rose-700" onClick={() => setClosing(poll)}>
+                      Clôturer
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -89,6 +108,16 @@ export default function SondagesPage() {
       )}
 
       <CreatePollModal open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      <Modal open={!!closing} onClose={() => setClosing(null)} title="Clôturer ce sondage ?" description="Plus personne ne pourra voter. Les résultats restent visibles.">
+        <div className="flex justify-end gap-3 pt-2">
+          <button className="btn-ghost" onClick={() => setClosing(null)}>Annuler</button>
+          <button className="btn-primary" disabled={close.isPending} onClick={() => closing && close.mutate(closing.id)}>
+            {close.isPending && <Spinner />}
+            Clôturer
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -103,10 +132,10 @@ function CreatePollModal({ open, onClose }: { open: boolean; onClose: () => void
     mutationFn: () => api.post('/polls', { title, description: description || undefined, options: options.filter(Boolean) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['polls'] });
-      toast.success('Sondage publié.');
+      toast.success('Sondage publié ✅');
       handleClose();
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Création impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le sondage n'a pas pu être créé."),
   });
 
   function handleClose() {

@@ -3,11 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { visibleNavItems } from '@/lib/nav';
+import { MOBILE_TABS, NAV_SECTIONS, NavSection, visibleNavItems } from '@/lib/nav';
 import { useAuthStore } from '@/store/auth-store';
-import { LogoutIcon, XIcon } from '@/components/ui/icons';
+import { GridIcon, LogoutIcon, XIcon } from '@/components/ui/icons';
 
-export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const roles = useAuthStore((s) => s.member?.roles ?? []);
@@ -29,22 +29,34 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <nav className="relative flex-1 space-y-1 overflow-y-auto px-3 py-2">
-        {items.map((item) => {
-          const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
-          const Icon = item.icon;
+      <nav className="relative flex-1 overflow-y-auto px-3 py-2">
+        {(Object.keys(NAV_SECTIONS) as NavSection[]).map((section) => {
+          const sectionItems = items.filter((i) => i.section === section);
+          if (!sectionItems.length) return null;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={`group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
-                active ? 'bg-white text-mims-800 shadow-hover' : 'text-mims-100/80 hover:bg-white/[0.08] hover:text-white'
-              }`}
-            >
-              <Icon width={19} height={19} className={active ? 'text-mims-700' : 'text-mims-200 group-hover:text-white'} />
-              {item.label}
-            </Link>
+            <div key={section} className="mb-4">
+              <p className="px-3.5 pb-1.5 text-[11px] font-bold uppercase tracking-widest text-mims-300/80">{NAV_SECTIONS[section]}</p>
+              <div className="space-y-0.5">
+                {sectionItems.map((item) => {
+                  const active = isActive(pathname, item.href);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onNavigate}
+                      aria-current={active ? 'page' : undefined}
+                      className={`group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        active ? 'bg-white text-mims-800 shadow-hover' : 'text-mims-100/80 hover:bg-white/[0.08] hover:text-white'
+                      }`}
+                    >
+                      <Icon width={19} height={19} className={active ? 'text-mims-700' : 'text-mims-200 group-hover:text-white'} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </nav>
@@ -80,10 +92,10 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <div className="fixed inset-0 z-40 lg:hidden">
       <div className="absolute inset-0 bg-ink-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="absolute inset-y-0 left-0 w-72 animate-fade-up shadow-lift">
+      <div className="absolute inset-y-0 left-0 w-[min(18rem,85vw)] animate-fade-up shadow-lift">
         <button
           onClick={onClose}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white"
+          className="absolute right-3 top-5 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
           aria-label="Fermer le menu"
         >
           <XIcon width={16} height={16} />
@@ -91,5 +103,50 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
         <SidebarContent onNavigate={onClose} />
       </div>
     </div>
+  );
+}
+
+function isActive(pathname: string | null, href: string) {
+  return pathname === href || !!pathname?.startsWith(`${href}/`);
+}
+
+/** Barre d'onglets fixée en bas sur mobile : les pages les plus utilisées à portée de pouce. */
+export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
+  const pathname = usePathname();
+  const roles = useAuthStore((s) => s.member?.roles ?? []);
+  const tabs = visibleNavItems(roles).filter((i) => MOBILE_TABS.includes(i.href));
+  const inMenu = !tabs.some((t) => isActive(pathname, t.href));
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-300/40 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+      <div className="mx-auto grid max-w-md grid-cols-5">
+        {tabs.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition ${active ? 'text-mims-700' : 'text-ink-500'}`}
+            >
+              <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${active ? 'bg-mims-100' : ''}`}>
+                <Icon width={20} height={20} />
+              </span>
+              {item.label}
+            </Link>
+          );
+        })}
+        <button
+          onClick={onOpenMenu}
+          className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${inMenu ? 'text-mims-700' : 'text-ink-500'}`}
+        >
+          <span className={`flex h-7 w-12 items-center justify-center rounded-full ${inMenu ? 'bg-mims-100' : ''}`}>
+            <GridIcon width={20} height={20} />
+          </span>
+          Menu
+        </button>
+      </div>
+    </nav>
   );
 }

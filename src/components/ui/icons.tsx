@@ -71,9 +71,6 @@ export const PlusIcon = (p: IconProps) => (
 export const SearchIcon = (p: IconProps) => (
   <svg {...base(p)}><circle cx="10.5" cy="10.5" r="6.5" /><path d="m20 20-4.3-4.3" /></svg>
 );
-export const MenuIcon = (p: IconProps) => (
-  <svg {...base(p)}><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17" /></svg>
-);
 export const ChartIcon = (p: IconProps) => (
   <svg {...base(p)}><path d="M4 4v16.5h16.5" /><path d="M8 16.5v-4M12.5 16.5V8M17 16.5v-7" /></svg>
 );
@@ -97,4 +94,31 @@ export const MegaphoneIcon = (p: IconProps) => (
 );
 export const EyeIcon = (p: IconProps) => (
   <svg {...base(p)}><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z" /><circle cx="12" cy="12" r="2.8" /></svg>
+);
+export const ReceiptIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M5.5 3h13v18l-2.2-1.6L14 21l-2-1.6L10 21l-2.3-1.6L5.5 21V3Z" /><path d="M9 8h6M9 12h6M9 16h3" /></svg>
+);
+export const ArrowDownLeftIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M17 7 7 17M7 8v9h9" /></svg>
+);
+export const ArrowUpRightIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M7 17 17 7M8 7h9v9" /></svg>
+);
+export const HeartIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M12 20.5s-8-4.9-8-11A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.5c0 6.1-8 11-8 11Z" /></svg>
+);
+export const AlertIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M12 3.5 2.5 20h19L12 3.5Z" /><path d="M12 10v4.5M12 17.4v.1" /></svg>
+);
+export const EditIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z" /><path d="m13.5 6.5 4 4" /></svg>
+);
+export const ArchiveIcon = (p: IconProps) => (
+  <svg {...base(p)}><rect x="2.5" y="3.5" width="19" height="5" rx="1.2" /><path d="M4.5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V8.5" /><path d="M10 12.5h4" /></svg>
+);
+export const ChevronLeftIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="m15 5-7 7 7 7" /></svg>
+);
+export const GridIcon = (p: IconProps) => (
+  <svg {...base(p)}><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" /></svg>
 );

@@ -3,40 +3,42 @@
 import { useState } from 'react';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { PageHeader } from '@/components/ui/page-header';
+import { Tabs } from '@/components/ui/tabs';
+import { nextCotisationSunday } from '@/lib/finance';
+import { formatDate } from '@/lib/format';
 import { MyDues } from '@/components/cotisations/my-dues';
 import { TreasuryPanel } from '@/components/cotisations/treasury-panel';
 
 export default function CotisationsPage() {
   const { data: me } = useMe();
   const canManage = hasRole(me, ['TRESORIER', 'PRESIDENT_ADMIN']);
-  const [tab, setTab] = useState<'perso' | 'gestion'>('perso');
+  const [tab, setTab] = useState<'gestion' | 'perso'>('gestion');
+  const managing = canManage && tab === 'gestion';
 
   return (
     <div>
       <PageHeader
         eyebrow="Finances"
-        title="Cotisations"
-        description="500 FCFA par mois pour faire vivre notre communauté — simple, transparent, tracé."
+        title={managing ? 'Caisse & cotisations' : 'Cotisations'}
+        description={
+          managing
+            ? "Encaisse, note les sorties, suis les collectes et les retards de cotisation."
+            : `500 FCFA par mois, à régler le 2e dimanche du mois (prochain : ${formatDate(nextCotisationSunday(), { weekday: 'long', day: 'numeric', month: 'long' })}). Ici, tu vois ce que tu as payé et ce qu'il te reste.`
+        }
       />
 
       {canManage && (
-        <div className="mb-6 inline-flex rounded-full bg-white p-1 shadow-soft ring-1 ring-ink-300/40">
-          <button
-            onClick={() => setTab('perso')}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tab === 'perso' ? 'bg-mims-700 text-white' : 'text-ink-700'}`}
-          >
-            Mes cotisations
-          </button>
-          <button
-            onClick={() => setTab('gestion')}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tab === 'gestion' ? 'bg-mims-700 text-white' : 'text-ink-700'}`}
-          >
-            Gestion du groupe
-          </button>
-        </div>
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: 'gestion', label: 'Caisse du groupe' },
+            { value: 'perso', label: 'Mes cotisations' },
+          ]}
+        />
       )}
 
-      {tab === 'perso' || !canManage ? <MyDues /> : <TreasuryPanel />}
+      {managing ? <TreasuryPanel /> : <MyDues />}
     </div>
   );
 }

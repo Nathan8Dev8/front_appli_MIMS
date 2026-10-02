@@ -13,8 +13,6 @@ export interface Me {
   address?: string | null;
   birthDate?: string | null;
   avatarUrl?: string | null;
-  whatsappActive: boolean;
-  preferredChannel: 'PUSH' | 'WHATSAPP' | 'SMS' | 'EMAIL';
   joinedAt: string;
   status: string;
   roles: string[];

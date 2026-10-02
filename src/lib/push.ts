@@ -75,3 +75,19 @@ export async function isPushSubscribed(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Sur iPhone/iPad, Safari n'autorise les notifications que pour une appli
+ * ajoutée à l'écran d'accueil (iOS 16.4+). Dans un simple onglet, il faut
+ * d'abord l'installer.
+ */
+export function needsHomeScreenInstall() {
+  if (typeof window === 'undefined') return false;
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  return iOS && !standalone;
+}
+
+export function sendTestPush() {
+  return api.post('/push/test');
+}

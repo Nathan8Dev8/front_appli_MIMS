@@ -24,12 +24,29 @@ export default function NotificationsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
+  const markAll = useMutation({
+    mutationFn: () => api.patch('/notifications/read-all'),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+  const unread = notifications?.filter((n) => n.status !== 'LU').length ?? 0;
+
   return (
     <div>
-      <PageHeader eyebrow="Toujours informé" title="Notifications" description="Tout ce que la communauté t'a partagé récemment." />
+      <PageHeader
+        eyebrow="Tes messages"
+        title="Notifications"
+        description="Les derniers messages du groupe et du bureau."
+        actions={
+          unread > 0 && (
+            <button className="btn-secondary" onClick={() => markAll.mutate()} disabled={markAll.isPending}>
+              Tout marquer comme lu ({unread})
+            </button>
+          )
+        }
+      />
 
       {isLoading ? null : !notifications?.length ? (
-        <EmptyState icon={<BellIcon />} title="Aucune notification pour l'instant" description="Tu seras informé ici de tout ce qui concerne ta vie de communauté." />
+        <EmptyState icon={<BellIcon />} title="Rien de nouveau pour l'instant" description="Tes rappels, tes reçus et les annonces s'afficheront ici." />
       ) : (
         <ul className="space-y-3">
           {notifications.map((n) => (

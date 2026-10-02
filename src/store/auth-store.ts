@@ -53,7 +53,3 @@ export const ROLE_LABELS: Record<string, string> = {
   PASTEUR_ENCADREUR: 'Pasteur / Encadreur',
 };
 
-export function hasAnyRole(roles: string[] | undefined, allowed: string[]) {
-  if (!roles) return false;
-  return roles.some((r) => allowed.includes(r));
-}

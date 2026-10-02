@@ -1,45 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { api, ApiError, API_URL } from '@/lib/api-client';
-import { useAuthStore } from '@/store/auth-store';
+import { api, ApiError, downloadFile } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DocumentStatusBadge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
-import { DownloadIcon, FileTextIcon, PlusIcon, UploadIcon } from '@/components/ui/icons';
+import { ArchiveIcon, ArrowRightIcon, DownloadIcon, EditIcon, FileTextIcon, PlusIcon, UploadIcon } from '@/components/ui/icons';
+import { DOCUMENT_MANAGER_ROLES } from '@/lib/events';
 import { formatDate } from '@/lib/format';
 import type { AppDocument } from '@/lib/types';
 
-const TYPE_LABELS: Record<string, string> = { REGLEMENT: 'Règlement intérieur', PV: 'Procès-verbal', AUTRE: 'Autre document' };
+const TYPE_LABELS: Record<string, string> = { REGLEMENT: 'Règlement intérieur', PV: 'Procès-verbaux', AUTRE: 'Autres documents' };
+
+const docDate = (d: AppDocument) => d.documentDate ?? d.publishedAt ?? d.createdAt;
 
 export default function DocumentsPage() {
   const { data: me } = useMe();
-  const canPublish = hasRole(me, ['SECRETAIRE', 'PRESIDENT_ADMIN']);
-  const token = useAuthStore((s) => s.token);
+  const canManage = hasRole(me, DOCUMENT_MANAGER_ROLES);
   const queryClient = useQueryClient();
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<AppDocument | undefined>();
 
   const { data: documents, isLoading } = useQuery({ queryKey: ['documents'], queryFn: () => api.get<AppDocument[]>('/documents') });
 
-  const publish = useMutation({
-    mutationFn: (id: string) => api.post(`/documents/${id}/publish`),
-    onSuccess: () => {
+  const action = useMutation({
+    mutationFn: ({ id, verb }: { id: string; verb: 'publish' | 'archive' }) => api.post(`/documents/${id}/${verb}`),
+    onSuccess: (_, { verb }) => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Document publié et notifié à la communauté.');
+      toast.success(verb === 'publish' ? 'Document publié, tout le monde est prévenu ✅' : "Archivé. Il reste consultable dans l'Historique.");
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Publication impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ça n'a pas marché."),
   });
-
-  async function download(doc: AppDocument) {
-    const res = await fetch(`${API_URL}/api/documents/${doc.id}/download`, { headers: { Authorization: `Bearer ${token}` } });
-    const blob = await res.blob();
-    window.open(URL.createObjectURL(blob), '_blank');
-  }
 
   const grouped = ['REGLEMENT', 'PV', 'AUTRE'].map((type) => ({
     type,
@@ -49,12 +46,18 @@ export default function DocumentsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Vie institutionnelle"
+        eyebrow="Les papiers du groupe"
         title="Documents"
-        description="Le règlement intérieur et les procès-verbaux qui gardent la mémoire de notre communauté."
+        description="Le règlement intérieur, les procès-verbaux et les autres documents en vigueur."
         actions={
-          canPublish && (
-            <button className="btn-primary" onClick={() => setUploadOpen(true)}>
+          canManage && (
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setEditing(undefined);
+                setFormOpen(true);
+              }}
+            >
               <PlusIcon width={16} height={16} /> Ajouter un document
             </button>
           )
@@ -64,121 +67,180 @@ export default function DocumentsPage() {
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-mims-700" /></div>
       ) : !documents?.length ? (
-        <EmptyState icon={<FileTextIcon />} title="Aucun document pour l'instant" description="Le règlement et les comptes-rendus apparaîtront ici dès leur publication." />
+        <EmptyState icon={<FileTextIcon />} title="Pas encore de document" description="Le règlement et les procès-verbaux seront ici dès qu'ils sont publiés." />
       ) : (
         <div className="space-y-8">
           {grouped.filter((g) => g.items.length).map((group) => (
-            <div key={group.type}>
+            <section key={group.type}>
               <h2 className="mb-3 font-display text-lg font-semibold text-ink-900">{TYPE_LABELS[group.type]}</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {group.items.map((doc) => (
-                  <div key={doc.id} className="card animate-fade-up flex items-start gap-4 p-5">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-mims-50 text-mims-700">
-                      <FileTextIcon width={20} height={20} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-ink-900">{doc.title}</p>
-                      {doc.description && <p className="mt-1 line-clamp-2 text-xs text-ink-500">{doc.description}</p>}
-                      <div className="mt-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <DocumentStatusBadge status={doc.status} />
-                          <span className="text-xs text-ink-500">{formatDate(doc.publishedAt ?? doc.createdAt)}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {canPublish && doc.status === 'BROUILLON' && (
-                            <button onClick={() => publish.mutate(doc.id)} className="text-xs font-semibold text-mims-700 hover:text-mims-800">
-                              Publier
+                  <div key={doc.id} className="card animate-fade-up flex flex-col p-4 sm:p-5">
+                    <button
+                      className="flex items-start gap-3 text-left"
+                      onClick={() => downloadFile(`/documents/${doc.id}/download`).catch((e) => toast.error(e instanceof ApiError ? e.message : "Le téléchargement n'a pas marché."))}
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-mims-50 text-mims-700">
+                        <FileTextIcon width={20} height={20} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold text-ink-900">{doc.title}</span>
+                        {doc.description && <span className="mt-1 line-clamp-2 block text-xs text-ink-500">{doc.description}</span>}
+                        <span className="mt-1.5 flex items-center gap-2 text-xs text-ink-500">
+                          {doc.status !== 'PUBLIE' && <DocumentStatusBadge status={doc.status} />}
+                          {formatDate(docDate(doc))}
+                        </span>
+                      </span>
+                      <DownloadIcon width={18} height={18} className="mt-1 shrink-0 text-mims-700" />
+                    </button>
+
+                    {(doc.reportFor || canManage) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-ink-300/30 pt-3">
+                        {doc.reportFor && (
+                          <Link href={`/evenements/${doc.reportFor.id}`} className="btn-ghost !px-3 !py-1.5 text-xs">
+                            Voir la réunion <ArrowRightIcon width={14} height={14} />
+                          </Link>
+                        )}
+                        {canManage && (
+                          <div className="ml-auto flex items-center gap-1">
+                            {doc.status === 'BROUILLON' && (
+                              <button onClick={() => action.mutate({ id: doc.id, verb: 'publish' })} disabled={action.isPending} className="btn-primary !px-3 !py-1.5 text-xs">
+                                Publier
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setEditing(doc);
+                                setFormOpen(true);
+                              }}
+                              className="flex h-9 w-9 items-center justify-center rounded-full text-ink-500 hover:bg-mims-50 hover:text-mims-700"
+                              aria-label="Modifier"
+                              title="Modifier"
+                            >
+                              <EditIcon width={16} height={16} />
                             </button>
-                          )}
-                          <button onClick={() => download(doc)} className="flex h-8 w-8 items-center justify-center rounded-full text-mims-700 hover:bg-mims-50" aria-label="Télécharger">
-                            <DownloadIcon width={16} height={16} />
-                          </button>
-                        </div>
+                            <button
+                              onClick={() => action.mutate({ id: doc.id, verb: 'archive' })}
+                              disabled={action.isPending}
+                              className="flex h-9 w-9 items-center justify-center rounded-full text-ink-500 hover:bg-mims-50 hover:text-mims-700"
+                              aria-label="Archiver"
+                              title="Archiver (reste dans l'Historique)"
+                            >
+                              <ArchiveIcon width={16} height={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
       )}
 
-      <UploadDocumentModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <Link
+        href="/historique?type=documents"
+        className="mt-8 flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm font-semibold text-mims-700 shadow-soft ring-1 ring-ink-300/40 transition hover:bg-mims-50"
+      >
+        Documents archivés et anciens PV
+        <ArrowRightIcon width={16} height={16} />
+      </Link>
+
+      {canManage && <DocumentFormModal open={formOpen} onClose={() => setFormOpen(false)} document={editing} />}
     </div>
   );
 }
 
-function UploadDocumentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Ajout (avec fichier) ou modification (sans fichier) d'un document. */
+function DocumentFormModal({ open, onClose, document }: { open: boolean; onClose: () => void; document?: AppDocument }) {
   const queryClient = useQueryClient();
   const [type, setType] = useState('PV');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [documentDate, setDocumentDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
 
-  const upload = useMutation({
+  useEffect(() => {
+    if (!open) return;
+    setType(document?.type ?? 'PV');
+    setTitle(document?.title ?? '');
+    setDescription(document?.description ?? '');
+    setDocumentDate(document?.documentDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+    setFile(null);
+  }, [open, document]);
+
+  const save = useMutation({
     mutationFn: () => {
+      if (document) return api.patch(`/documents/${document.id}`, { type, title, description, documentDate });
       const formData = new FormData();
       formData.append('type', type);
       formData.append('title', title);
+      formData.append('documentDate', documentDate);
       if (description) formData.append('description', description);
       formData.append('file', file!);
       return api.post('/documents', formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Document ajouté. Publie-le pour le rendre visible à tous.');
-      handleClose();
+      toast.success(document ? 'Modifications enregistrées ✅' : 'Document ajouté. Publie-le pour que tout le monde le voie.');
+      onClose();
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "L'envoi a échoué."),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le document n'a pas pu être enregistré."),
   });
 
-  function handleClose() {
-    setType('PV');
-    setTitle('');
-    setDescription('');
-    setFile(null);
-    onClose();
-  }
-
   return (
-    <Modal open={open} onClose={handleClose} title="Ajouter un document" description="Formats acceptés : PDF, images, documents bureautiques.">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={document ? 'Modifier le document' : 'Ajouter un document'}
+      description={document ? undefined : 'PDF, images, Word ou Excel. Pour le PV d’une assise, ajoute-le plutôt depuis la page de l’assise.'}
+    >
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          upload.mutate();
+          save.mutate();
         }}
       >
-        <div>
-          <label className="label">Type de document</label>
-          <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="PV">Procès-verbal</option>
-            <option value="REGLEMENT">Règlement intérieur</option>
-            <option value="AUTRE">Autre</option>
-          </select>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="doc-type">Type</label>
+            <select id="doc-type" className="input" value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="PV">Procès-verbal</option>
+              <option value="REGLEMENT">Règlement intérieur</option>
+              <option value="AUTRE">Autre</option>
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="doc-date">Date du document</label>
+            <input id="doc-date" type="date" className="input" value={documentDate} onChange={(e) => setDocumentDate(e.target.value)} required />
+          </div>
         </div>
         <div>
-          <label className="label">Titre</label>
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <label className="label" htmlFor="doc-title">Titre</label>
+          <input id="doc-title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
         <div>
-          <label className="label">Description (optionnel)</label>
-          <textarea className="input min-h-20" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <label className="label" htmlFor="doc-desc">Description (optionnel)</label>
+          <textarea id="doc-desc" className="input min-h-20" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
-        <div>
-          <label className="label">Fichier</label>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300/60 py-6 text-sm font-medium text-ink-500 hover:border-mims-400 hover:text-mims-700">
-            <UploadIcon width={18} height={18} />
-            {file ? file.name : 'Choisir un fichier'}
-            <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-          </label>
-        </div>
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" className="btn-ghost" onClick={handleClose}>Annuler</button>
-          <button type="submit" className="btn-primary" disabled={!file || !title || upload.isPending}>
-            {upload.isPending && <Spinner />}
-            Envoyer
+        {!document && (
+          <div>
+            <span className="label">Fichier</span>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ink-300/60 px-3 py-6 text-center text-sm font-medium text-ink-500 hover:border-mims-400 hover:text-mims-700">
+              <UploadIcon width={18} height={18} className="shrink-0" />
+              <span className="truncate">{file ? file.name : 'Choisir un fichier'}</span>
+              <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </label>
+          </div>
+        )}
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+          <button type="button" className="btn-ghost" onClick={onClose}>Annuler</button>
+          <button type="submit" className="btn-primary" disabled={(!document && !file) || !title || save.isPending}>
+            {save.isPending && <Spinner />}
+            {document ? 'Enregistrer' : 'Envoyer'}
           </button>
         </div>
       </form>

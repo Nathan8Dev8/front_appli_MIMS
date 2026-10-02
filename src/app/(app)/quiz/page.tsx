@@ -25,7 +25,7 @@ export default function QuizPage() {
       <PageHeader
         eyebrow="Grandir ensemble"
         title="Quiz"
-        description="Approfondis ta connaissance biblique et de la vie du groupe, un défi à la fois."
+        description="Des questions sur la Bible et la vie du groupe pour tester tes connaissances."
         actions={
           canCreate && (
             <button className="btn-primary" onClick={() => setCreateOpen(true)}>
@@ -38,7 +38,7 @@ export default function QuizPage() {
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-mims-700" /></div>
       ) : !quizzes?.length ? (
-        <EmptyState icon={<BrainIcon />} title="Aucun quiz disponible pour le moment" />
+        <EmptyState icon={<BrainIcon />} title="Pas de quiz pour l'instant" description="Les prochains quiz s'afficheront ici." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {quizzes.map((quiz) => (
@@ -68,7 +68,7 @@ function TakeQuizModal({ quiz, onClose }: { quiz: Quiz | null; onClose: () => vo
   const submit = useMutation({
     mutationFn: () => api.post<{ score: number; total: number }>(`/quizzes/${quiz!.id}/submit`, { answers }),
     onSuccess: (res) => setResult(res),
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Envoi impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Tes réponses n'ont pas pu être envoyées."),
   });
 
   function handleClose() {
@@ -85,7 +85,7 @@ function TakeQuizModal({ quiz, onClose }: { quiz: Quiz | null; onClose: () => vo
         <div className="py-4 text-center">
           <p className="font-display text-4xl font-semibold text-mims-700">{result.score}/{result.total}</p>
           <p className="mt-2 text-sm text-ink-500">
-            {result.score === result.total ? 'Score parfait, bravo !' : 'Merci pour ta participation !'}
+            {result.score === result.total ? 'Sans faute, bravo 🎉' : "Merci d'avoir joué."}
           </p>
           <button className="btn-primary mt-6" onClick={handleClose}>Fermer</button>
         </div>
@@ -132,10 +132,10 @@ function CreateQuizModal({ open, onClose }: { open: boolean; onClose: () => void
     mutationFn: () => api.post('/quizzes', { title, questions }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quizzes'] });
-      toast.success('Quiz publié.');
+      toast.success('Quiz publié ✅');
       handleClose();
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Création impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le quiz n'a pas pu être créé."),
   });
 
   function handleClose() {

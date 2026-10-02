@@ -8,10 +8,10 @@ import { RequireRole } from '@/components/auth/require-role';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Spinner } from '@/components/ui/spinner';
-import { StatCard } from '@/components/ui/stat-card';
-import { ChartIcon, ShieldIcon, UsersIcon, WalletIcon } from '@/components/ui/icons';
+import { Tabs } from '@/components/ui/tabs';
+import { ShieldIcon } from '@/components/ui/icons';
 import { ROLE_LABELS } from '@/store/auth-store';
-import { formatDateTime, formatFcfa } from '@/lib/format';
+import { formatDateTime } from '@/lib/format';
 import type { MemberSummary } from '@/lib/types';
 
 const ASSIGNABLE_ROLES = ['SECRETAIRE', 'TRESORIER', 'PRESIDENT_ADMIN', 'PASTEUR_ENCADREUR'];
@@ -25,16 +25,6 @@ interface AuditEntry {
   occurredAt: string;
 }
 
-interface FinanceReport {
-  year: number;
-  byMonth: { month: number; total: number; count: number }[];
-  totalCollected: number;
-  totalDue: number;
-  totalOutstanding: number;
-}
-
-const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-
 export default function AdministrationPage() {
   return (
     <RequireRole roles={['PRESIDENT_ADMIN']}>
@@ -44,67 +34,27 @@ export default function AdministrationPage() {
 }
 
 function AdministrationContent() {
-  const [tab, setTab] = useState<'roles' | 'rapports' | 'audit'>('rapports');
+  const [tab, setTab] = useState<'roles' | 'audit'>('roles');
 
   return (
     <div>
-      <PageHeader eyebrow="Gouvernance" title="Administration" description="Rôles, bilans financiers et journal d'audit du groupe." />
+      <PageHeader
+        eyebrow="Gestion"
+        title="Administration"
+        description="Les rôles du bureau et le journal des actions. Les bilans de la caisse sont dans l'Historique."
+      />
 
-      <div className="mb-6 inline-flex flex-wrap rounded-full bg-white p-1 shadow-soft ring-1 ring-ink-300/40">
-        {[
-          { key: 'rapports', label: 'Bilans' },
-          { key: 'roles', label: 'Rôles' },
-          { key: 'audit', label: "Journal d'audit" },
-        ].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key as typeof tab)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tab === t.key ? 'bg-mims-700 text-white' : 'text-ink-700'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'roles', label: 'Rôles' },
+          { value: 'audit', label: 'Journal des actions' },
+        ]}
+      />
 
-      {tab === 'rapports' && <ReportsTab />}
       {tab === 'roles' && <RolesTab />}
       {tab === 'audit' && <AuditTab />}
-    </div>
-  );
-}
-
-function ReportsTab() {
-  const { data: report, isLoading } = useQuery({
-    queryKey: ['reports', 'monthly-finance'],
-    queryFn: () => api.get<FinanceReport>('/reports/monthly-finance'),
-  });
-
-  if (isLoading || !report) return <Spinner className="h-7 w-7 text-mims-700" />;
-  const max = Math.max(...report.byMonth.map((m) => m.total), 1);
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Collecté cette année" value={formatFcfa(report.totalCollected)} icon={WalletIcon} tone="success" />
-        <StatCard label="Total attendu" value={formatFcfa(report.totalDue)} icon={ChartIcon} />
-        <StatCard label="Reste à percevoir" value={formatFcfa(report.totalOutstanding)} icon={UsersIcon} tone={report.totalOutstanding ? 'warning' : 'success'} />
-      </div>
-
-      <div className="card p-6">
-        <h3 className="mb-5 font-display text-base font-semibold text-ink-900">Cotisations collectées par mois — {report.year}</h3>
-        <div className="flex items-end gap-2.5" style={{ height: 180 }}>
-          {report.byMonth.map((m) => (
-            <div key={m.month} className="flex flex-1 flex-col items-center gap-2">
-              <div
-                className="w-full rounded-t-md bg-mims-600 transition-all"
-                style={{ height: `${Math.max((m.total / max) * 140, m.total > 0 ? 6 : 2)}px` }}
-                title={formatFcfa(m.total)}
-              />
-              <span className="text-[10px] font-medium text-ink-500">{MONTHS[m.month - 1]}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -117,18 +67,18 @@ function RolesTab() {
     mutationFn: ({ memberId, role }: { memberId: string; role: string }) => api.post(`/roles/${memberId}/assign`, { role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
-      toast.success('Rôle attribué.');
+      toast.success('Rôle attribué ✅');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Échec.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ça n'a pas marché."),
   });
 
   const revoke = useMutation({
     mutationFn: ({ memberId, role }: { memberId: string; role: string }) => api.post(`/roles/${memberId}/revoke`, { role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
-      toast.success('Rôle retiré.');
+      toast.success('Rôle retiré ✅');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Échec.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ça n'a pas marché."),
   });
 
   if (isLoading) return <Spinner className="h-7 w-7 text-mims-700" />;

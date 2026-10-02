@@ -35,11 +35,12 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Affiche une vraie notification système, même si l'app n'est pas ouverte —
-// c'est le cœur de la fonctionnalité : le membre voit qu'il a une
-// notification qui l'attend sans avoir besoin d'ouvrir l'application.
+// Affiche une vraie notification système, même si l'app est fermée (comme un
+// mail ou un message). Si l'app est ouverte à l'écran, elle reçoit aussi un
+// message : c'est elle qui joue le son des Jeunes MIMS et rafraîchit la liste,
+// la notification système est alors silencieuse pour ne pas sonner deux fois.
 self.addEventListener('push', (event) => {
-  let data = { title: 'Jeunes MIMS', body: 'Tu as une nouvelle notification.' };
+  let data = { title: 'Jeunes MIMS', body: 'Tu as une nouvelle notification.', url: '/notifications' };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {
@@ -47,18 +48,32 @@ self.addEventListener('push', (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      tag: data.tag || 'jeunes-mims-notification',
-      data: { url: data.url || '/notifications' },
-    }),
+    (async () => {
+      const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const appVisible = windows.some((c) => c.visibilityState === 'visible');
+      windows.forEach((c) => c.postMessage({ type: 'push', notification: data }));
+
+      // Pastille avec le nombre de non lus sur l'icône de l'appli installée.
+      if (typeof data.unread === 'number' && self.navigator.setAppBadge) {
+        await self.navigator.setAppBadge(data.unread).catch(() => undefined);
+      }
+
+      await self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/badge-96.png',
+        tag: data.id || undefined, // une notification par message : elles ne s'écrasent plus
+        renotify: Boolean(data.id),
+        timestamp: Date.now(),
+        silent: appVisible,
+        vibrate: [120, 60, 120, 60, 260], // signature de vibration (Android)
+        data: { url: data.url || '/notifications' },
+      });
+    })(),
   );
 });
 
-// Au clic sur la notification : ramène au premier plan un onglet déjà
-// ouvert sur l'app, sinon en ouvre un nouveau sur la page concernée.
+// Au clic : ramène l'appli au premier plan sur la page concernée, sinon l'ouvre.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/notifications';

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
-import { DesktopSidebar, MobileSidebar } from '@/components/layout/sidebar';
+import { DesktopSidebar, MobileSidebar, MobileTabBar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { FullPageSpinner } from '@/components/ui/spinner';
 import { PushOptInBanner } from '@/components/notifications/push-opt-in-banner';
@@ -33,12 +33,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <DesktopSidebar />
       <MobileSidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div className="lg:pl-64">
-        <Topbar onOpenMenu={() => setMenuOpen(true)} />
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
+        <Topbar />
+        <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-8 sm:pt-8 lg:pb-10">
           <PushOptInBanner />
           {children}
         </main>
       </div>
+      <MobileTabBar onOpenMenu={() => setMenuOpen(true)} />
     </div>
   );
 }

@@ -32,10 +32,10 @@ export default function ConnexionPage() {
     try {
       const res = await api.post<LoginResponse>('/auth/login', { username, password });
       login(res.accessToken, res.member, res.mustChangePassword);
-      toast.success(`Content de te revoir, ${res.member.firstName} !`);
+      toast.success(`Salut ${res.member.firstName} 👋`);
       router.replace(res.mustChangePassword ? '/connexion/nouveau-mot-de-passe' : '/tableau-de-bord');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Impossible de se connecter pour le moment.");
+      setError(err instanceof ApiError ? err.message : "Connexion impossible pour l'instant, réessaie dans un moment.");
     } finally {
       setLoading(false);
     }
@@ -55,10 +55,10 @@ export default function ConnexionPage() {
 
           <p className="text-xs font-bold uppercase tracking-widest text-mims-700">Espace membre</p>
           <h1 className="mt-1.5 font-display text-3xl font-semibold tracking-tight text-mims-900">
-            Heureux de te revoir
+            Content de te revoir
           </h1>
           <p className="mt-2 text-sm text-ink-700">
-            Connecte-toi avec l'identifiant qui t'a été communiqué par le secrétariat.
+            Entre l'identifiant que le secrétariat t'a donné.
           </p>
 
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
@@ -109,8 +109,8 @@ export default function ConnexionPage() {
           </form>
 
           <p className="mt-8 text-center text-xs text-ink-500">
-            Pas encore de compte ? Rapproche-toi du secrétariat lors de la prochaine rencontre —
-            <br />ton accès est activé personnellement, pour ta sécurité.
+            Tu n'as pas encore d'accès ? Demande-le au secrétariat à la prochaine rencontre,
+            <br />les comptes sont créés à la main.
           </p>
         </div>
       </div>

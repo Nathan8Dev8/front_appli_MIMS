@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api-client';
 import { useAuthStore } from '@/store/auth-store';
 import { Avatar } from '@/components/ui/avatar';
-import { BellIcon, MenuIcon } from '@/components/ui/icons';
+import { BellIcon } from '@/components/ui/icons';
 import { playNotificationChime } from '@/lib/sound';
 
 interface NotificationItem {
@@ -17,9 +18,10 @@ interface NotificationItem {
   content: string;
 }
 
-export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
+export function Topbar() {
   const member = useAuthStore((s) => s.member);
   const knownUnreadIds = useRef<Set<string> | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: notifications } = useQuery({
     queryKey: ['notifications', 'me'],
@@ -47,17 +49,32 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
     knownUnreadIds.current = unreadIds;
   }, [notifications]);
 
+  // Une notification push arrive pendant que l'appli est ouverte : on recharge tout de suite
+  // (au lieu d'attendre le prochain passage toutes les 30 s) ; l'effet ci-dessus joue le son.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'push') queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [queryClient]);
+
   const unread = notifications?.filter((n) => n.status !== 'LU').length ?? 0;
 
+  // Pastille sur l'icône de l'appli installée (comme une messagerie).
+  useEffect(() => {
+    if (!notifications) return;
+    const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    (unread ? nav.setAppBadge?.(unread) : nav.clearAppBadge?.())?.catch(() => undefined);
+  }, [notifications, unread]);
+
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-ink-300/40 bg-mist-100/90 px-4 backdrop-blur sm:px-8">
-      <button
-        onClick={onOpenMenu}
-        className="flex h-9 w-9 items-center justify-center rounded-full text-ink-700 hover:bg-mims-50 lg:hidden"
-        aria-label="Ouvrir le menu"
-      >
-        <MenuIcon />
-      </button>
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-ink-300/40 bg-mist-100/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur sm:px-8">
+      <Link href="/tableau-de-bord" className="flex items-center gap-2 lg:hidden">
+        <Image src="/logo.png" alt="" width={28} height={28} />
+        <span className="font-display text-base font-semibold tracking-tight text-ink-900">Jeunes MIMS</span>
+      </Link>
 
       <div className="hidden text-sm font-medium text-ink-500 lg:block">
         {greeting()}, {member?.firstName ?? ''} 👋
@@ -88,6 +105,6 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
 function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return 'Bonjour';
-  if (hour < 18) return 'Bel après-midi';
+  if (hour < 18) return 'Bon après-midi';
   return 'Bonsoir';
 }

@@ -1,112 +1,96 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '@/lib/api-client';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Modal } from '@/components/ui/modal';
-import { Spinner } from '@/components/ui/spinner';
-import { PaymentStatusBadge } from '@/components/ui/badge';
-import { formatFcfa, formatDate } from '@/lib/format';
-import { PlusIcon, SparkleIcon } from '@/components/ui/icons';
-import type { MemberSummary, Payment } from '@/lib/types';
+import { ArrowDownLeftIcon, ArrowRightIcon, ArrowUpRightIcon, ReceiptIcon } from '@/components/ui/icons';
+import { CashHero } from '@/components/finance/cash-hero';
+import { LiveStatus } from '@/components/finance/live-status';
+import { ReminderBar } from '@/components/finance/reminder-bar';
+import { CollectesPanel } from '@/components/finance/collectes-panel';
+import { EntryModal, type EntryNature } from '@/components/finance/entry-modal';
+import { ExpenseModal } from '@/components/finance/expense-modal';
+import { MembersPanel, type MemberFilter } from '@/components/finance/members-panel';
+import { TransactionTable } from '@/components/finance/transaction-table';
+import { formatDate, formatFcfa } from '@/lib/format';
+import { LIVE_REFRESH_MS } from '@/lib/finance';
+import type { CashSummary, CollecteSummary, MemberFinanceRow, Payment, TransactionsPage, TxNature } from '@/lib/types';
 
-interface DebtRow {
-  member: { id: string; firstName: string; lastName: string };
-  monthsLate: number;
-  totalDebt: number;
-}
-
-const METHODS = [
-  { value: 'CASH', label: 'Espèces' },
-  { value: 'MOBILE_MONEY', label: 'Mobile Money' },
-  { value: 'VIREMENT', label: 'Virement' },
-  { value: 'AUTRE', label: 'Autre' },
-];
+type Tab = 'membres' | 'collectes' | 'operations';
 
 export function TreasuryPanel() {
   const queryClient = useQueryClient();
-  const [recordOpen, setRecordOpen] = useState(false);
-  const [reversalTarget, setReversalTarget] = useState<Payment | null>(null);
-  const [reason, setReason] = useState('');
+  const [tab, setTab] = useState<Tab>('membres');
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>('TOUS');
+  const [entry, setEntry] = useState<{ open: boolean; initial?: { nature?: EntryNature; memberId?: string; collecteId?: string } }>({ open: false });
+  const [expense, setExpense] = useState<{ open: boolean; initial?: { category?: TxNature; collecteId?: string; amount?: number; label?: string } }>({ open: false });
 
-  const { data: members } = useQuery({ queryKey: ['members', 'all'], queryFn: () => api.get<MemberSummary[]>('/members') });
-  const { data: payments } = useQuery({ queryKey: ['payments', 'all'], queryFn: () => api.get<Payment[]>('/payments') });
-  const { data: debtSummary } = useQuery({ queryKey: ['dues', 'debt-summary'], queryFn: () => api.get<DebtRow[]>('/dues/debt-summary') });
-
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['payments'] });
-    queryClient.invalidateQueries({ queryKey: ['dues'] });
-  };
-
-  const generateDues = useMutation({
-    mutationFn: () => api.post('/dues/generate'),
-    onSuccess: () => {
-      toast.success('Échéances du mois générées.');
-      invalidateAll();
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Échec de la génération.'),
+  const { data: summary, dataUpdatedAt, isFetching } = useQuery({ queryKey: ['finance', 'summary'], queryFn: () => api.get<CashSummary>('/finance/summary'), refetchInterval: LIVE_REFRESH_MS, refetchOnWindowFocus: true });
+  const { data: members } = useQuery({ queryKey: ['finance', 'members'], queryFn: () => api.get<MemberFinanceRow[]>('/finance/members'), refetchInterval: LIVE_REFRESH_MS, refetchOnWindowFocus: true });
+  const { data: collectes } = useQuery({ queryKey: ['finance', 'collectes'], queryFn: () => api.get<CollecteSummary[]>('/finance/collectes'), refetchInterval: LIVE_REFRESH_MS, refetchOnWindowFocus: true });
+  const { data: recent } = useQuery({
+    queryKey: ['finance', 'transactions', 'recent'],
+    queryFn: () => api.get<TransactionsPage>('/finance/transactions?pageSize=10'),
+    enabled: tab === 'operations',
+    refetchInterval: LIVE_REFRESH_MS,
   });
+  // Versements enregistrés avant la validation automatique : on les garde visibles pour ne rien laisser en suspens.
+  const { data: payments } = useQuery({ queryKey: ['payments', 'all'], queryFn: () => api.get<Payment[]>('/payments') });
+  const pending = (payments ?? []).filter((p) => p.status === 'EN_ATTENTE');
 
   const confirmPayment = useMutation({
     mutationFn: (id: string) => api.post(`/payments/${id}/confirm`),
     onSuccess: () => {
-      toast.success('Paiement validé, reçu généré et envoyé.');
-      invalidateAll();
+      toast.success('Paiement validé, le reçu est envoyé ✅');
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['finance'] });
+      queryClient.invalidateQueries({ queryKey: ['dues'] });
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Validation impossible.'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le paiement n'a pas pu être validé."),
   });
 
-  const reversePayment = useMutation({
-    mutationFn: () => api.post(`/payments/${reversalTarget!.id}/reverse`, { reason }),
-    onSuccess: () => {
-      toast.success('Contre-passation enregistrée.');
-      setReversalTarget(null);
-      setReason('');
-      invalidateAll();
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Contre-passation impossible.'),
-  });
+  const memberRows = members ?? [];
+  const collecteRows = collectes ?? [];
+  const openCollectes = collecteRows.filter((c) => c.status === 'OUVERTE').length;
 
-  const pending = (payments ?? []).filter((p) => p.status === 'EN_ATTENTE');
+  const tabs: { value: Tab; label: string; badge?: number }[] = [
+    { value: 'membres', label: 'Suivi des membres', badge: summary?.arrears.debtors },
+    { value: 'collectes', label: 'Collectes', badge: openCollectes || undefined },
+    { value: 'operations', label: 'Dernières opérations' },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-lg font-semibold text-ink-900">Gestion des cotisations</h2>
-          <p className="text-sm text-ink-500">Réservé au trésorier et à la présidence.</p>
-        </div>
-        <div className="flex gap-2">
-          <button className="btn-secondary" onClick={() => generateDues.mutate()} disabled={generateDues.isPending}>
-            {generateDues.isPending && <Spinner />}
-            <SparkleIcon width={16} height={16} /> Générer les échéances du mois
-          </button>
-          <button className="btn-primary" onClick={() => setRecordOpen(true)}>
-            <PlusIcon width={16} height={16} /> Enregistrer un versement
-          </button>
-        </div>
+      <ReminderBar debtors={summary?.arrears.debtors ?? 0} />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button className="btn-primary" onClick={() => setEntry({ open: true })}>
+          <ArrowDownLeftIcon width={16} height={16} /> Enregistrer une entrée
+        </button>
+        <button className="btn-secondary !text-rose-600" onClick={() => setExpense({ open: true })}>
+          <ArrowUpRightIcon width={16} height={16} /> Enregistrer une sortie
+        </button>
+        <Link href="/transactions" className="btn-ghost">
+          <ReceiptIcon width={16} height={16} /> Toutes les transactions
+        </Link>
+        <LiveStatus className="ml-auto" updatedAt={dataUpdatedAt} fetching={isFetching} onRefresh={() => queryClient.invalidateQueries({ queryKey: ['finance'] })} />
       </div>
 
-      {!!debtSummary?.length && (
-        <div className="card p-6">
-          <h3 className="mb-3 font-display text-base font-semibold text-ink-900">Arriérés à surveiller</h3>
-          <ul className="divide-y divide-ink-300/30">
-            {debtSummary.slice(0, 8).map((row) => (
-              <li key={row.member.id} className="flex items-center justify-between py-2.5 text-sm">
-                <span className="font-medium text-ink-900">{row.member.firstName} {row.member.lastName}</span>
-                <span className="text-ink-500">{row.monthsLate} mois · <span className="font-semibold text-rose-600">{formatFcfa(row.totalDebt)}</span></span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <CashHero
+        summary={summary}
+        onSeeDebtors={() => {
+          setMemberFilter('EN_DETTE');
+          setTab('membres');
+        }}
+      />
 
       {!!pending.length && (
-        <div className="card p-6">
-          <h3 className="mb-3 font-display text-base font-semibold text-ink-900">En attente de validation</h3>
-          <ul className="divide-y divide-ink-300/30">
+        <div className="card border border-amber-200 bg-amber-50/50 p-5">
+          <h3 className="mb-3 font-display text-base font-semibold text-ink-900">En attente de validation ({pending.length})</h3>
+          <ul className="divide-y divide-amber-100">
             {pending.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
@@ -122,136 +106,61 @@ export function TreasuryPanel() {
         </div>
       )}
 
-      <div className="card p-6">
-        <h3 className="mb-3 font-display text-base font-semibold text-ink-900">Tous les paiements</h3>
-        {!payments?.length ? (
-          <EmptyState title="Aucun paiement enregistré" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-                  <th className="pb-3">Membre</th>
-                  <th className="pb-3">Montant</th>
-                  <th className="pb-3">Date</th>
-                  <th className="pb-3">Statut</th>
-                  <th className="pb-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-300/30">
-                {payments.map((p) => (
-                  <tr key={p.id}>
-                    <td className="py-3 font-medium text-ink-900">{p.member?.firstName} {p.member?.lastName}</td>
-                    <td className={`py-3 ${p.amount < 0 ? 'text-rose-600' : 'text-ink-700'}`}>{formatFcfa(p.amount)}</td>
-                    <td className="py-3 text-ink-500">{formatDate(p.paidAt)}</td>
-                    <td className="py-3"><PaymentStatusBadge status={p.status} /></td>
-                    <td className="py-3 text-right">
-                      {p.status === 'VALIDE' && !p.paymentRef.startsWith('RVS') && (
-                        <button className="text-xs font-semibold text-rose-600 hover:text-rose-700" onClick={() => setReversalTarget(p)}>
-                          Contre-passer
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <div className="flex gap-1 overflow-x-auto border-b border-ink-300/40">
+        {tabs.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTab(t.value)}
+            className={`relative flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-semibold transition ${tab === t.value ? 'text-mims-700' : 'text-ink-500 hover:text-ink-900'}`}
+          >
+            {t.label}
+            {!!t.badge && <span className="rounded-full bg-mims-100 px-1.5 text-xs text-mims-700">{t.badge}</span>}
+            {tab === t.value && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-mims-700" />}
+          </button>
+        ))}
       </div>
 
-      <RecordPaymentModal open={recordOpen} onClose={() => setRecordOpen(false)} members={members ?? []} onDone={invalidateAll} />
-
-      <Modal open={!!reversalTarget} onClose={() => setReversalTarget(null)} title="Contre-passer ce paiement" description="L'opération d'origine est conservée ; une contre-passation référencée est créée pour l'annuler.">
-        <textarea
-          className="input min-h-24"
-          placeholder="Motif de la contre-passation (obligatoire pour la traçabilité)"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
+      {tab === 'membres' && (
+        <MembersPanel
+          rows={memberRows}
+          filter={memberFilter}
+          onFilterChange={setMemberFilter}
+          onCollect={(m) => setEntry({ open: true, initial: { nature: 'COTISATION', memberId: m.id } })}
         />
-        <div className="mt-4 flex justify-end gap-3">
-          <button className="btn-ghost" onClick={() => setReversalTarget(null)}>Annuler</button>
-          <button className="btn-primary !bg-rose-600 hover:!bg-rose-700" disabled={!reason || reversePayment.isPending} onClick={() => reversePayment.mutate()}>
-            {reversePayment.isPending && <Spinner />}
-            Confirmer la contre-passation
-          </button>
+      )}
+
+      {tab === 'collectes' && (
+        <CollectesPanel
+          collectes={collecteRows}
+          onContribute={(c) => setEntry({ open: true, initial: { nature: 'COLLECTE', collecteId: c.id } })}
+          onRemit={(c) =>
+            setExpense({
+              open: true,
+              initial: { category: 'REMISE_COLLECTE', collecteId: c.id, amount: Math.max(c.remaining, 0), label: `Remise de la collecte « ${c.title} »` },
+            })
+          }
+        />
+      )}
+
+      {tab === 'operations' && (
+        <div className="card overflow-hidden">
+          {!recent?.items.length ? (
+            <div className="p-6"><EmptyState icon={<ReceiptIcon />} title="Aucune opération enregistrée" description="Les entrées et sorties de la caisse s'afficheront ici." /></div>
+          ) : (
+            <>
+              <TransactionTable items={recent.items} />
+              <div className="border-t border-ink-300/30 px-5 py-3 text-right">
+                <Link href="/transactions" className="inline-flex items-center gap-1 text-sm font-semibold text-mims-700 hover:text-mims-800">
+                  Toutes les transactions <ArrowRightIcon width={16} height={16} />
+                </Link>
+              </div>
+            </>
+          )}
         </div>
-      </Modal>
+      )}
+
+      <EntryModal open={entry.open} onClose={() => setEntry({ open: false })} members={memberRows} collectes={collecteRows} initial={entry.initial} />
+      <ExpenseModal open={expense.open} onClose={() => setExpense({ open: false })} balance={summary?.balance ?? 0} collectes={collecteRows} initial={expense.initial} />
     </div>
-  );
-}
-
-function RecordPaymentModal({
-  open,
-  onClose,
-  members,
-  onDone,
-}: {
-  open: boolean;
-  onClose: () => void;
-  members: MemberSummary[];
-  onDone: () => void;
-}) {
-  const [memberId, setMemberId] = useState('');
-  const [amount, setAmount] = useState(500);
-  const [method, setMethod] = useState('CASH');
-  const [note, setNote] = useState('');
-
-  const record = useMutation({
-    mutationFn: () => api.post('/payments', { memberId, amount, method, note: note || undefined }),
-    onSuccess: () => {
-      toast.success('Versement enregistré. Il apparaît maintenant en attente de validation.');
-      onDone();
-      onClose();
-      setMemberId('');
-      setAmount(500);
-      setNote('');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "L'enregistrement a échoué."),
-  });
-
-  return (
-    <Modal open={open} onClose={onClose} title="Enregistrer un versement" description="Le paiement sera d'abord placé en attente, puis validé pour générer le reçu.">
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          record.mutate();
-        }}
-      >
-        <div>
-          <label className="label">Membre</label>
-          <select className="input" value={memberId} onChange={(e) => setMemberId(e.target.value)} required>
-            <option value="" disabled>Sélectionner un membre</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>{m.firstName} {m.lastName} — {m.memberCode}</option>
-            ))}
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label">Montant (FCFA)</label>
-            <input type="number" min={1} className="input" value={amount} onChange={(e) => setAmount(Number(e.target.value))} required />
-          </div>
-          <div>
-            <label className="label">Mode de paiement</label>
-            <select className="input" value={method} onChange={(e) => setMethod(e.target.value)}>
-              {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="label">Note (optionnel)</label>
-          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Précision utile pour le suivi" />
-        </div>
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>Annuler</button>
-          <button type="submit" className="btn-primary" disabled={!memberId || record.isPending}>
-            {record.isPending && <Spinner />}
-            Enregistrer
-          </button>
-        </div>
-      </form>
-    </Modal>
   );
 }

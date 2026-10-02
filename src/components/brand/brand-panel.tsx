@@ -21,12 +21,12 @@ export function BrandPanel() {
 
       <div className="relative max-w-md">
         <h2 className="font-display text-4xl font-semibold leading-tight tracking-tight">
-          Ta communauté,
-          <br />à portée de main.
+          Tout le groupe,
+          <br />au même endroit.
         </h2>
         <p className="mt-5 text-base leading-relaxed text-mims-100/90">
-          Cotisations, documents, événements, sondages et quiz : tout ce qui fait vivre notre
-          groupe de jeunesse, réuni dans un seul espace — clair, sûr et pensé pour toi.
+          Tes cotisations, les documents du groupe, les événements, les sondages et les quiz.
+          Tout est ici, et c'est réservé aux membres.
         </p>
 
         <div className="mt-10 border-l-2 border-white/30 pl-4">
@@ -36,7 +36,7 @@ export function BrandPanel() {
       </div>
 
       <p className="relative text-xs text-mims-100/70">
-        © {new Date().getFullYear()} Jeunes MIMS — Bâtir ensemble, grandir dans la foi.
+        © {new Date().getFullYear()} Jeunes MIMS · Bâtir ensemble, grandir dans la foi.
       </p>
     </div>
   );

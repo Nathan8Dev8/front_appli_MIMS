@@ -52,9 +52,35 @@ export const api = {
     request<T>(path, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body ?? {}) }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body instanceof FormData ? body : JSON.stringify(body ?? {}) }),
+  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body ?? {}) }),
   del: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'DELETE', ...(body !== undefined ? { body: JSON.stringify(body) } : {}) }),
 };
+
+/** Télécharge un fichier protégé par le jeton (un simple lien <a> ne peut pas envoyer l'en-tête Authorization). */
+export async function downloadFile(path: string, filename?: string) {
+  const token = useAuthStore.getState().token;
+  const res = await fetch(`${API_URL}/api${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (res.status === 401) useAuthStore.getState().logout();
+  if (!res.ok) {
+    let message = `Erreur ${res.status}`;
+    try {
+      const body = await res.json();
+      message = Array.isArray(body.message) ? body.message.join(' ') : body.message ?? message;
+    } catch {
+      // ignore parse errors
+    }
+    throw new ApiError(message, res.status);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename ?? res.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/)?.[1] ?? 'document';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 export function fileUrl(path?: string | null) {
   if (!path) return undefined;

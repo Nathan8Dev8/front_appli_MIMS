@@ -1,160 +1,128 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
-import { api, ApiError } from '@/lib/api-client';
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
-import { CalendarIcon, CheckIcon, MapPinIcon, PlusIcon, XIcon, ClockIcon } from '@/components/ui/icons';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { Badge } from '@/components/ui/badge';
+import { AlertIcon, ArrowRightIcon, CalendarIcon, ClockIcon, MapPinIcon, PlusIcon } from '@/components/ui/icons';
+import { EventFormModal } from '@/components/events/event-form-modal';
+import { RsvpButtons } from '@/components/events/rsvp-buttons';
+import { EVENT_KIND_LABELS, ORGANIZER_ROLES, eventStats, isCancelled, isPast, missingReport } from '@/lib/events';
+import { formatDate } from '@/lib/format';
 import type { AppEvent } from '@/lib/types';
 
 export default function EvenementsPage() {
   const { data: me } = useMe();
-  const canCreate = hasRole(me, ['SECRETAIRE', 'PRESIDENT_ADMIN', 'PASTEUR_ENCADREUR']);
-  const queryClient = useQueryClient();
+  const isOrganizer = hasRole(me, ORGANIZER_ROLES);
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: events, isLoading } = useQuery({ queryKey: ['events'], queryFn: () => api.get<AppEvent[]>('/events') });
 
-  const respond = useMutation({
-    mutationFn: ({ id, response }: { id: string; response: string }) => api.post(`/events/${id}/participation`, { response }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Ta réponse a été enregistrée.');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Réponse impossible.'),
-  });
-
-  const sorted = [...(events ?? [])].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const upcoming = (events ?? []).filter((e) => !isPast(e));
+  const toComplete = isOrganizer ? (events ?? []).filter((e) => missingReport(e).length).reverse() : [];
 
   return (
     <div>
       <PageHeader
-        eyebrow="Vie de communauté"
+        eyebrow="Vie du groupe"
         title="Événements"
-        description="Chaque rencontre compte. Confirme ta présence et vis ces moments avec nous."
+        description="Les prochains rendez-vous et assises. Dis-nous si tu seras là, ça aide à préparer."
         actions={
-          canCreate && (
+          isOrganizer && (
             <button className="btn-primary" onClick={() => setCreateOpen(true)}>
-              <PlusIcon width={16} height={16} /> Créer un événement
+              <PlusIcon width={16} height={16} /> Nouvel événement
             </button>
           )
         }
       />
 
+      {toComplete.length > 0 && (
+        <section className="mb-8 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200 sm:p-5">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-800">
+            <AlertIcon width={18} height={18} /> Comptes rendus à compléter ({toComplete.length})
+          </h2>
+          <ul className="space-y-2">
+            {toComplete.slice(0, 5).map((e) => (
+              <li key={e.id}>
+                <Link href={`/evenements/${e.id}`} className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-soft transition hover:shadow-hover">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink-900">{e.title}</p>
+                    <p className="text-xs text-ink-500">{formatDate(e.startsAt)} · manque : {missingReport(e).join(', ')}</p>
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold text-mims-700">Compléter</span>
+                  <ArrowRightIcon width={16} height={16} className="shrink-0 text-mims-700" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-mims-700" /></div>
-      ) : !sorted.length ? (
-        <EmptyState icon={<CalendarIcon />} title="Aucun événement programmé" description="Les prochaines rencontres apparaîtront ici." />
+      ) : !upcoming.length ? (
+        <EmptyState icon={<CalendarIcon />} title="Rien de prévu pour l'instant" description="Les prochains rendez-vous du groupe s'afficheront ici." />
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2">
-          {sorted.map((event) => {
-            const mine = event.participations?.find((p) => p.memberId === me?.id);
-            const past = new Date(event.startsAt) < new Date();
-            return (
-              <div key={event.id} className="card animate-fade-up overflow-hidden">
-                <div className="bg-mims-gradient px-5 py-4 text-white">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-mims-100">{formatDate(event.startsAt, { weekday: 'long', day: '2-digit', month: 'long' })}</p>
-                  <h3 className="mt-1 font-display text-lg font-semibold">{event.title}</h3>
-                </div>
-                <div className="p-5">
-                  {event.description && <p className="text-sm text-ink-700">{event.description}</p>}
-                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-ink-500">
-                    <span className="flex items-center gap-1.5"><ClockIcon width={14} height={14} />{formatDateTime(event.startsAt)}</span>
-                    {event.location && <span className="flex items-center gap-1.5"><MapPinIcon width={14} height={14} />{event.location}</span>}
-                  </div>
-
-                  {!past && (
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        onClick={() => respond.mutate({ id: event.id, response: 'PRESENT' })}
-                        className={`btn-secondary !flex-1 ${mine?.response === 'PRESENT' ? '!bg-emerald-600 !text-white !ring-0' : ''}`}
-                      >
-                        <CheckIcon width={16} height={16} /> Je serai là
-                      </button>
-                      <button
-                        onClick={() => respond.mutate({ id: event.id, response: 'ABSENT' })}
-                        className={`btn-secondary !flex-1 ${mine?.response === 'ABSENT' ? '!bg-rose-600 !text-white !ring-0' : ''}`}
-                      >
-                        <XIcon width={16} height={16} /> Je ne pourrai pas
-                      </button>
-                    </div>
-                  )}
-
-                  {event._count && (
-                    <p className="mt-3 text-xs text-ink-500">{event._count.participations} réponse(s) enregistrée(s)</p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {upcoming.map((event) => (
+            <EventCard key={event.id} event={event} meId={me?.id} />
+          ))}
         </div>
       )}
 
-      <CreateEventModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <Link
+        href="/historique?type=evenements"
+        className="mt-8 flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm font-semibold text-mims-700 shadow-soft ring-1 ring-ink-300/40 transition hover:bg-mims-50"
+      >
+        Événements passés, assises et comptes rendus
+        <ArrowRightIcon width={16} height={16} />
+      </Link>
+
+      <EventFormModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }
 
-function CreateEventModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState({ title: '', description: '', location: '', startsAt: '' });
-
-  const create = useMutation({
-    mutationFn: () => api.post('/events', form),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Événement créé et communauté notifiée.');
-      handleClose();
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Création impossible.'),
-  });
-
-  function handleClose() {
-    setForm({ title: '', description: '', location: '', startsAt: '' });
-    onClose();
-  }
+function EventCard({ event, meId }: { event: AppEvent; meId?: string }) {
+  const { mine, coming } = eventStats(event, meId);
+  const cancelled = isCancelled(event);
 
   return (
-    <Modal open={open} onClose={handleClose} title="Créer un événement" description="Tous les membres actifs seront notifiés automatiquement.">
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          create.mutate();
-        }}
-      >
-        <div>
-          <label className="label">Titre</label>
-          <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+    <div className={`card animate-fade-up flex flex-col p-5 ${cancelled ? 'opacity-70' : ''}`}>
+      <Link href={`/evenements/${event.id}`} className="flex gap-4">
+        <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-mims-gradient text-white">
+          <span className="font-display text-2xl font-semibold leading-none">{formatDate(event.startsAt, { day: '2-digit' })}</span>
+          <span className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-mims-100">
+            {formatDate(event.startsAt, { month: 'short' }).replace('.', '')}
+          </span>
         </div>
-        <div>
-          <label className="label">Description</label>
-          <textarea className="input min-h-20" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label">Lieu</label>
-            <input className="input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <Badge variant={event.kind === 'ASSISE' ? 'gold' : 'info'}>{EVENT_KIND_LABELS[event.kind]}</Badge>
+            {cancelled && <Badge variant="danger">Annulé</Badge>}
           </div>
-          <div>
-            <label className="label">Date &amp; heure</label>
-            <input type="datetime-local" className="input" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} required />
-          </div>
+          <h3 className="font-display text-base font-semibold leading-snug text-ink-900">{event.title}</h3>
+          <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-500">
+            <span className="flex items-center gap-1">
+              <ClockIcon width={14} height={14} />
+              {formatDate(event.startsAt, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {event.location && <span className="flex items-center gap-1"><MapPinIcon width={14} height={14} />{event.location}</span>}
+          </p>
         </div>
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" className="btn-ghost" onClick={handleClose}>Annuler</button>
-          <button type="submit" className="btn-primary" disabled={create.isPending}>
-            {create.isPending && <Spinner />}
-            Publier l'événement
-          </button>
+      </Link>
+
+      {!cancelled && (
+        <div className="mt-4">
+          <RsvpButtons eventId={event.id} mine={mine} />
+          <p className="mt-2 text-xs text-ink-500">{coming ? `${coming} personne${coming > 1 ? 's' : ''} seront là` : 'Sois le premier à répondre'}</p>
         </div>
-      </form>
-    </Modal>
+      )}
+    </div>
   );
 }
