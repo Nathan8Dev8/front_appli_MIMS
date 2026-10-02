@@ -122,3 +122,6 @@ export const ChevronLeftIcon = (p: IconProps) => (
 export const GridIcon = (p: IconProps) => (
   <svg {...base(p)}><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" /></svg>
 );
+export const InboxIcon = (p: IconProps) => (
+  <svg {...base(p)}><path d="M3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5" /><path d="M3 13.5 5.5 5h13l2.5 8.5" /><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5" /></svg>
+);

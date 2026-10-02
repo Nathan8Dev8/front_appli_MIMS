@@ -9,6 +9,7 @@ import { FullPageSpinner } from '@/components/ui/spinner';
 import { PushOptInBanner } from '@/components/notifications/push-opt-in-banner';
 import { EmojiAssist } from '@/components/ui/emoji-assist';
 import { QuizPrompt } from '@/components/quiz/quiz-prompt';
+import { FeedbackModal } from '@/components/feedback/feedback';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -44,6 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <MobileTabBar onOpenMenu={() => setMenuOpen(true)} />
       <EmojiAssist />
       <QuizPrompt />
+      <FeedbackModal />
     </div>
   );
 }

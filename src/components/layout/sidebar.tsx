@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { MOBILE_TABS, NAV_SECTIONS, NavSection, visibleNavItems } from '@/lib/nav';
 import { useAuthStore } from '@/store/auth-store';
 import { GridIcon, LogoutIcon, XIcon } from '@/components/ui/icons';
+import { openFeedback } from '@/components/feedback/feedback';
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -61,7 +62,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="relative border-t border-white/10 p-3">
+      <div className="relative space-y-0.5 border-t border-white/10 p-3">
+        <button
+          onClick={() => {
+            onNavigate?.();
+            openFeedback();
+          }}
+          className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-mims-100/80 transition-colors hover:bg-white/[0.08] hover:text-white"
+        >
+          <span className="w-[19px] text-center" aria-hidden="true">🐞</span>
+          Signaler un bug ou une idée
+        </button>
         <button
           onClick={() => {
             logout();

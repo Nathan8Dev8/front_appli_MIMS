@@ -14,6 +14,7 @@ import { ROLE_LABELS } from '@/store/auth-store';
 import { formatDate } from '@/lib/format';
 import type { Me } from '@/hooks/use-me';
 import { PushSettings } from '@/components/notifications/push-settings';
+import { MyFeedback } from '@/components/feedback/my-feedback';
 
 export default function MonProfilPage() {
   const { data: me, isLoading } = useMe();
@@ -190,6 +191,8 @@ export default function MonProfilPage() {
           </div>
         </form>
       </div>
+
+      <MyFeedback />
 
       <div className="card mt-6 animate-fade-up p-6 sm:p-8">
         <h2 className="mb-1 font-display text-lg font-semibold text-ink-900">Notifications</h2>

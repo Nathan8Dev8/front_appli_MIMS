@@ -307,3 +307,57 @@ export interface ReminderResult {
   failed: number;
   pushed: number;
 }
+
+// ————————————————————————————————————————————————————————————
+// Plaintes & suggestions
+// ————————————————————————————————————————————————————————————
+
+export type ComplaintKind = 'PLAINTE' | 'SUGGESTION';
+export type ComplaintCategory = 'ACTIVITES' | 'COTISATIONS' | 'COMPORTEMENT' | 'BUREAU' | 'AUTRE';
+export type ComplaintStatus = 'RECUE' | 'EN_COURS' | 'RESOLUE' | 'CLASSEE';
+
+export interface ComplaintPerson {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl?: string | null;
+  roles: { role: { code: string } }[];
+}
+
+export interface Complaint {
+  id: string;
+  reference: string;
+  kind: ComplaintKind;
+  category: ComplaintCategory;
+  subject: string;
+  description: string;
+  status: ComplaintStatus;
+  authorId: string;
+  author: ComplaintPerson;
+  attachmentName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string | null;
+  _count?: { messages: number };
+}
+
+export interface ComplaintDetail extends Complaint {
+  canHandle: boolean;
+  messages: { id: string; authorId: string; author: ComplaintPerson; content: string | null; newStatus: ComplaintStatus | null; createdAt: string }[];
+}
+
+export type FeedbackStatus = 'NOUVEAU' | 'PRIS_EN_COMPTE' | 'TERMINE' | 'NON_RETENU';
+
+export interface AppFeedback {
+  id: string;
+  kind: 'BUG' | 'AMELIORATION';
+  title: string;
+  description: string;
+  page?: string | null;
+  device?: string | null;
+  screenshotName?: string | null;
+  status: FeedbackStatus;
+  adminNote?: string | null;
+  createdAt: string;
+  author?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null };
+}

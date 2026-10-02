@@ -11,15 +11,17 @@ import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatDate, formatFcfa, timeAgo } from '@/lib/format';
-import type { AppEvent, AppDocument, MonthlyDue, Announcement, MemberSummary, CashSummary } from '@/lib/types';
+import type { AppEvent, AppDocument, MonthlyDue, Announcement, MemberSummary, CashSummary, Complaint } from '@/lib/types';
+import { HANDLER_ROLES, isOpen } from '@/lib/complaints';
 import { ORGANIZER_ROLES, isCancelled, isPast, missingReport } from '@/lib/events';
-import { WalletIcon, CalendarIcon, FileTextIcon, UsersIcon, ChartIcon, ArrowRightIcon, MapPinIcon, MegaphoneIcon } from '@/components/ui/icons';
+import { WalletIcon, CalendarIcon, FileTextIcon, UsersIcon, ChartIcon, ArrowRightIcon, MapPinIcon, MegaphoneIcon, InboxIcon } from '@/components/ui/icons';
 
 export default function DashboardPage() {
   const { data: me } = useMe();
   const isStaff = hasRole(me, STAFF_ROLES);
   const isTreasurer = hasRole(me, ['TRESORIER', 'PRESIDENT_ADMIN']);
   const isOrganizer = hasRole(me, ORGANIZER_ROLES);
+  const isComplaintHandler = hasRole(me, HANDLER_ROLES);
 
   const { data: onboarding } = useOnboarding();
   const { data: myDues } = useQuery({ queryKey: ['dues', 'me'], queryFn: () => api.get<MonthlyDue[]>('/dues/me') });
@@ -32,6 +34,12 @@ export default function DashboardPage() {
     queryFn: () => api.get<MemberSummary[]>('/members'),
     enabled: isStaff,
   });
+  const { data: complaints } = useQuery({
+    queryKey: ['complaints'],
+    queryFn: () => api.get<Complaint[]>('/complaints'),
+    enabled: isComplaintHandler,
+  });
+  const complaintsToHandle = (complaints ?? []).filter((c) => c.authorId !== me?.id && isOpen(c.status)).length;
   const { data: cash } = useQuery({
     queryKey: ['finance', 'summary'],
     queryFn: () => api.get<CashSummary>('/finance/summary'),
@@ -154,6 +162,17 @@ export default function DashboardPage() {
             <Link href="/membres" className="block">
               <StatCard label="Membres actifs" value={activeMembers === undefined ? '—' : String(activeMembers)} icon={UsersIcon} />
             </Link>
+            {isComplaintHandler && (
+              <Link href="/plaintes" className="block">
+                <StatCard
+                  label="Plaintes & suggestions"
+                  value={String(complaintsToHandle)}
+                  hint={complaintsToHandle ? 'En attente de traitement' : 'Rien en attente 👌'}
+                  icon={InboxIcon}
+                  tone={complaintsToHandle ? 'warning' : 'success'}
+                />
+              </Link>
+            )}
             {isOrganizer && (
               <Link href="/evenements" className="block">
                 <StatCard
