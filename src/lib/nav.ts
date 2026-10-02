@@ -55,6 +55,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/administration', emoji: '🛡️', label: 'Administration', icon: ShieldIcon, section: 'bureau', roles: ['PRESIDENT_ADMIN'], description: 'Rôles et journal des actions.' },
 ];
 
+export const NAV_ITEMS_HREFS = NAV_ITEMS.map((i) => i.href);
+
 /** Raccourcis de la barre du bas sur mobile (le reste est dans « Menu »). */
 export const MOBILE_TABS = ['/tableau-de-bord', '/evenements', '/historique', '/cotisations'];
 

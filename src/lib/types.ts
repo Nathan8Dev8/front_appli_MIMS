@@ -71,6 +71,20 @@ export interface EventParticipation {
 
 export type EventKind = 'ASSISE' | 'ACTIVITE' | 'AUTRE';
 
+export interface EventRepeat {
+  frequency: 'WEEKLY' | 'MONTHLY_NTH' | 'MONTHLY_DAY';
+  weekday?: number | null;
+  nth?: number | null;
+  monthDay?: number | null;
+}
+
+export interface EventSeries extends EventRepeat {
+  id: string;
+  time: string;
+  until?: string | null;
+  active: boolean;
+}
+
 export interface AppEvent {
   id: string;
   kind: EventKind;
@@ -86,6 +100,8 @@ export interface AppEvent {
   status: 'PLANIFIE' | 'EN_COURS' | 'TERMINE' | 'ANNULE';
   participations: EventParticipation[];
   reportDocument?: { id: string; title: string; documentCode: string; status: string } | null;
+  /** Renseigné si cette date fait partie d'un événement récurrent. */
+  series?: EventSeries | null;
   createdBy?: { firstName: string; lastName: string };
 }
 
@@ -113,6 +129,8 @@ export interface Poll {
   closesAt?: string | null;
   createdAt: string;
   options: PollOption[];
+  /** Choix actuel du membre connecté (null s'il n'a pas voté). */
+  myOptionId: string | null;
 }
 
 export type QuizAnswer = number[] | string;

@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertIcon, ArrowRightIcon, CalendarIcon, ClockIcon, MapPinIcon, PlusIcon } from '@/components/ui/icons';
 import { EventFormModal } from '@/components/events/event-form-modal';
 import { RsvpButtons } from '@/components/events/rsvp-buttons';
-import { EVENT_KIND_LABELS, ORGANIZER_ROLES, eventStats, isCancelled, isPast, missingReport } from '@/lib/events';
+import { EVENT_KIND_LABELS, ORGANIZER_ROLES, describeRepeat, eventStats, isCancelled, isPast, missingReport } from '@/lib/events';
 import { formatDate } from '@/lib/format';
 import type { AppEvent } from '@/lib/types';
 
@@ -105,6 +105,7 @@ function EventCard({ event, meId }: { event: AppEvent; meId?: string }) {
           <div className="mb-1 flex flex-wrap items-center gap-1.5">
             <Badge variant={event.kind === 'ASSISE' ? 'gold' : 'info'}>{EVENT_KIND_LABELS[event.kind]}</Badge>
             {cancelled && <Badge variant="danger">Annulé</Badge>}
+            {event.series && <Badge variant="neutral">🔁 {describeRepeat(event.series)}</Badge>}
           </div>
           <h3 className="font-display text-base font-semibold leading-snug text-ink-900">{event.title}</h3>
           <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-500">

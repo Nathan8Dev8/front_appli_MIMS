@@ -4,7 +4,8 @@ import { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMarkSectionSeen, useNotifications } from '@/hooks/use-notifications';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api-client';
 import { useAuthStore } from '@/store/auth-store';
@@ -12,7 +13,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { BellIcon } from '@/components/ui/icons';
 import { playNotificationChime } from '@/lib/sound';
 import { notificationUrl } from '@/lib/notifications';
-import type { AppNotification } from '@/lib/types';
 
 export function Topbar() {
   const member = useAuthStore((s) => s.member);
@@ -25,11 +25,9 @@ export function Topbar() {
       .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
       .catch(() => undefined);
 
-  const { data: notifications } = useQuery({
-    queryKey: ['notifications', 'me'],
-    queryFn: () => api.get<AppNotification[]>('/notifications/me'),
-    refetchInterval: 30_000,
-  });
+  const { data: notifications } = useNotifications();
+  // Ouvrir une rubrique efface sa bulle dans le menu.
+  useMarkSectionSeen();
 
   // Joue un carillon (+ toast) dès qu'une notification jusque-là inconnue
   // apparaît — jamais au tout premier chargement, pour ne pas sonner sur

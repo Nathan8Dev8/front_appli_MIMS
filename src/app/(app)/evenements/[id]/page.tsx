@@ -27,7 +27,7 @@ import {
 import { EventFormModal } from '@/components/events/event-form-modal';
 import { EventMap, directionsUrl, formatCoords } from '@/components/events/event-map';
 import { RsvpButtons } from '@/components/events/rsvp-buttons';
-import { DOCUMENT_MANAGER_ROLES, EVENT_KIND_LABELS, ORGANIZER_ROLES, eventStats, isCancelled, isPast } from '@/lib/events';
+import { DOCUMENT_MANAGER_ROLES, EVENT_KIND_LABELS, ORGANIZER_ROLES, describeRepeat, eventStats, isCancelled, isPast } from '@/lib/events';
 import { STAFF_ROLES } from '@/lib/nav';
 import { formatDate } from '@/lib/format';
 import type { AppEvent, MemberSummary } from '@/lib/types';
@@ -42,6 +42,7 @@ export default function EventDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
+  const [stopOpen, setStopOpen] = useState(false);
 
   const { data: event, isLoading, error } = useQuery({ queryKey: ['events', id], queryFn: () => api.get<AppEvent>(`/events/${id}`) });
 
@@ -68,6 +69,12 @@ export default function EventDetailPage() {
             <Badge variant={event.kind === 'ASSISE' ? 'gold' : 'info'}>{EVENT_KIND_LABELS[event.kind]}</Badge>
             {cancelled && <Badge variant="danger">Annulé</Badge>}
             {past && !cancelled && <Badge variant="neutral" className="!bg-white/15 !text-white">Passé</Badge>}
+            {event.series && (
+              <Badge variant="neutral" className="!bg-white/15 !text-white">
+                🔁 {describeRepeat(event.series, event.series.time)}
+                {!event.series.active && ' (arrêté)'}
+              </Badge>
+            )}
           </div>
           <h1 className="font-display text-2xl font-semibold leading-tight sm:text-3xl">{event.title}</h1>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-mims-100">
@@ -98,7 +105,12 @@ export default function EventDetailPage() {
               </button>
               {!past && (
                 <button className="btn-ghost !py-2 !text-rose-600 hover:!bg-rose-50" onClick={() => setCancelOpen(true)}>
-                  Annuler l'événement
+                  {event.series?.active ? 'Annuler cette date' : "Annuler l'événement"}
+                </button>
+              )}
+              {event.series?.active && (
+                <button className="btn-ghost !py-2 !text-rose-600 hover:!bg-rose-50" onClick={() => setStopOpen(true)}>
+                  🔁 Arrêter la répétition
                 </button>
               )}
             </div>
@@ -206,6 +218,7 @@ export default function EventDetailPage() {
         <>
           <EventFormModal open={editOpen} onClose={() => setEditOpen(false)} event={event} />
           <CancelModal open={cancelOpen} onClose={() => setCancelOpen(false)} event={event} />
+          {event.series && <StopSeriesModal open={stopOpen} onClose={() => setStopOpen(false)} event={event} />}
           {past && <AttendanceModal open={attendanceOpen} onClose={() => setAttendanceOpen(false)} event={event} />}
         </>
       )}
@@ -378,6 +391,35 @@ function CancelModal({ open, onClose, event }: { open: boolean; onClose: () => v
         <button className="btn-ghost" onClick={onClose}>Garder</button>
         <button className="btn-primary !bg-rose-600 hover:!bg-rose-700" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
           {cancel.isPending && <Spinner />} Oui, annuler
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function StopSeriesModal({ open, onClose, event }: { open: boolean; onClose: () => void; event: AppEvent }) {
+  const invalidate = useInvalidateEvents();
+  const stop = useMutation({
+    mutationFn: () => api.post<{ removed: number; cancelled: number }>(`/events/series/${event.series!.id}/stop`),
+    onSuccess: (r) => {
+      invalidate();
+      toast.success(`Répétition arrêtée : ${r.removed} date(s) retirée(s)${r.cancelled ? `, ${r.cancelled} annulée(s)` : ''}.`);
+      onClose();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ça n'a pas marché."),
+  });
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Arrêter la répétition ?"
+      description={`Plus aucune nouvelle date de « ${event.title} ». Les dates à venir sans réponse sont retirées ; celles où des membres ont répondu sont annulées et ceux qui venaient sont prévenus. Les dates passées et leurs comptes rendus restent.`}
+    >
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button className="btn-ghost" onClick={onClose}>Garder</button>
+        <button className="btn-primary !bg-rose-600 hover:!bg-rose-700" disabled={stop.isPending} onClick={() => stop.mutate()}>
+          {stop.isPending && <Spinner />} Oui, arrêter
         </button>
       </div>
     </Modal>

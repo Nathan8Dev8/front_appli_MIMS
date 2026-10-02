@@ -7,6 +7,7 @@ import { MOBILE_TABS, NAV_SECTIONS, NavSection, visibleNavItems } from '@/lib/na
 import { useAuthStore } from '@/store/auth-store';
 import { GridIcon, LogoutIcon, XIcon } from '@/components/ui/icons';
 import { openFeedback } from '@/components/feedback/feedback';
+import { useNavBadges } from '@/hooks/use-notifications';
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -15,6 +16,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const logout = useAuthStore((s) => s.logout);
 
   const items = visibleNavItems(roles);
+  const badges = useNavBadges();
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-mims-gradient-soft">
@@ -52,7 +54,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       }`}
                     >
                       <Icon width={19} height={19} className={active ? 'text-mims-700' : 'text-mims-200 group-hover:text-white'} />
-                      {item.label}
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <CountBubble count={badges[item.href]} />
                     </Link>
                   );
                 })}
@@ -117,6 +120,19 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
+/** Bulle rouge avec le nombre de nouveautés d'une rubrique (rien s'il n'y en a pas). */
+function CountBubble({ count, className = '' }: { count?: number; className?: string }) {
+  if (!count) return null;
+  return (
+    <span
+      className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-bold leading-none text-white shadow-soft ${className}`}
+      aria-label={`${count} nouveauté${count > 1 ? 's' : ''}`}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 function isActive(pathname: string | null, href: string) {
   return pathname === href || !!pathname?.startsWith(`${href}/`);
 }
@@ -125,8 +141,14 @@ function isActive(pathname: string | null, href: string) {
 export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const pathname = usePathname();
   const roles = useAuthStore((s) => s.member?.roles ?? []);
-  const tabs = visibleNavItems(roles).filter((i) => MOBILE_TABS.includes(i.href));
+  const all = visibleNavItems(roles);
+  const tabs = all.filter((i) => MOBILE_TABS.includes(i.href));
   const inMenu = !tabs.some((t) => isActive(pathname, t.href));
+  const badges = useNavBadges();
+  // Le bouton Menu additionne les nouveautés des rubriques qu'il cache (hors « Notifications », déjà sur la cloche).
+  const menuCount = all
+    .filter((i) => !MOBILE_TABS.includes(i.href) && i.href !== '/notifications')
+    .reduce((sum, i) => sum + (badges[i.href] ?? 0), 0);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-300/40 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
@@ -141,8 +163,9 @@ export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
               aria-current={active ? 'page' : undefined}
               className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition ${active ? 'text-mims-700' : 'text-ink-500'}`}
             >
-              <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${active ? 'bg-mims-100' : ''}`}>
+              <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition ${active ? 'bg-mims-100' : ''}`}>
                 <Icon width={20} height={20} />
+                <CountBubble count={badges[item.href]} className="absolute -right-0.5 -top-1.5" />
               </span>
               {item.label}
             </Link>
@@ -152,8 +175,9 @@ export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
           onClick={onOpenMenu}
           className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${inMenu ? 'text-mims-700' : 'text-ink-500'}`}
         >
-          <span className={`flex h-7 w-12 items-center justify-center rounded-full ${inMenu ? 'bg-mims-100' : ''}`}>
+          <span className={`relative flex h-7 w-12 items-center justify-center rounded-full ${inMenu ? 'bg-mims-100' : ''}`}>
             <GridIcon width={20} height={20} />
+            <CountBubble count={menuCount} className="absolute -right-0.5 -top-1.5" />
           </span>
           Menu
         </button>

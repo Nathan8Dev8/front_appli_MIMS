@@ -24,10 +24,10 @@ export default function SondagesPage() {
   const { data: polls, isLoading } = useQuery({ queryKey: ['polls'], queryFn: () => api.get<Poll[]>('/polls') });
 
   const vote = useMutation({
-    mutationFn: ({ pollId, optionId }: { pollId: string; optionId: string }) => api.post(`/polls/${pollId}/votes`, { optionId }),
-    onSuccess: () => {
+    mutationFn: ({ pollId, optionId }: { pollId: string; optionId: string; changed: boolean }) => api.post(`/polls/${pollId}/votes`, { optionId }),
+    onSuccess: (_, { changed }) => {
       queryClient.invalidateQueries({ queryKey: ['polls'] });
-      toast.success('Vote enregistré ✅');
+      toast.success(changed ? 'Vote modifié ✅' : 'Vote enregistré ✅');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ton vote n'a pas pu être enregistré."),
   });
@@ -77,24 +77,32 @@ export default function SondagesPage() {
                   {poll.options.map((option) => {
                     const votes = option._count?.votes ?? 0;
                     const pct = total ? Math.round((votes / total) * 100) : 0;
+                    const mine = poll.myOptionId === option.id;
                     return (
                       <button
                         key={option.id}
-                        disabled={poll.status !== 'OUVERT' || vote.isPending}
-                        onClick={() => vote.mutate({ pollId: poll.id, optionId: option.id })}
-                        className="group relative block w-full overflow-hidden rounded-xl border border-ink-300/40 px-4 py-2.5 text-left text-sm transition hover:border-mims-400 disabled:cursor-default"
+                        disabled={poll.status !== 'OUVERT' || vote.isPending || mine}
+                        aria-pressed={mine}
+                        onClick={() => vote.mutate({ pollId: poll.id, optionId: option.id, changed: !!poll.myOptionId })}
+                        className={`group relative block w-full overflow-hidden rounded-xl border px-4 py-2.5 text-left text-sm transition hover:border-mims-400 disabled:cursor-default ${
+                          mine ? 'border-mims-700 ring-1 ring-mims-700' : 'border-ink-300/40'
+                        }`}
                       >
-                        <div className="absolute inset-y-0 left-0 bg-mims-50 transition-all" style={{ width: `${pct}%` }} />
-                        <div className="relative flex items-center justify-between font-medium text-ink-900">
-                          <span>{option.label}</span>
-                          <span className="text-xs text-ink-500">{pct}% · {votes}</span>
+                        <div className={`absolute inset-y-0 left-0 transition-all ${mine ? 'bg-mims-100' : 'bg-mims-50'}`} style={{ width: `${pct}%` }} />
+                        <div className="relative flex items-center justify-between gap-2 font-medium text-ink-900">
+                          <span>{mine && '✅ '}{option.label}</span>
+                          <span className="shrink-0 text-xs text-ink-500">{pct}% · {votes}</span>
                         </div>
                       </button>
                     );
                   })}
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-xs text-ink-500">{total} vote{total > 1 ? 's' : ''}{poll.anonymous ? ' · anonyme' : ''}</p>
+                  <p className="text-xs text-ink-500">
+                    {total} vote{total > 1 ? 's' : ''}
+                    {poll.anonymous ? ' · anonyme' : ''}
+                    {poll.myOptionId && poll.status === 'OUVERT' && ' · touche un autre choix pour changer ton vote'}
+                  </p>
                   {canClose && poll.status === 'OUVERT' && (
                     <button className="text-xs font-semibold text-rose-600 hover:text-rose-700" onClick={() => setClosing(poll)}>
                       Clôturer
