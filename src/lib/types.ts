@@ -50,7 +50,7 @@ export interface Payment {
 export interface AppDocument {
   id: string;
   documentCode: string;
-  type: 'REGLEMENT' | 'PV' | 'AUTRE';
+  type: 'REGLEMENT' | 'PV' | 'ASSISE' | 'AUTRE';
   title: string;
   description?: string | null;
   documentDate?: string | null;
@@ -113,19 +113,59 @@ export interface Poll {
   options: PollOption[];
 }
 
+export type QuizAnswer = number[] | string;
+
+/** CHOIX : cases à cocher (correctIndexes) ; TEXTE : réponse écrite (answer). Bonnes réponses absentes tant que le quiz est ouvert. */
 export interface QuizQuestion {
   id: string;
+  type: 'CHOIX' | 'TEXTE';
   question: string;
-  choices: string[];
-  correctIndex?: number;
+  choices?: string[];
+  correctIndexes?: number[];
+  answer?: string;
 }
 
-export interface Quiz {
+export interface QuizSummary {
   id: string;
   title: string;
-  status: string;
-  closesAt?: string | null;
-  content: { questions: QuizQuestion[] };
+  comment?: string | null;
+  publishedAt: string;
+  closesAt: string | null;
+  closed: boolean;
+  questionCount: number;
+  myAttempt: { score: number; total: number; submittedAt: string } | null;
+  participants?: number;
+}
+
+export interface QuizDetail extends Omit<QuizSummary, 'questionCount' | 'myAttempt' | 'participants'> {
+  questions: QuizQuestion[];
+  myAttempt: {
+    score: number;
+    total: number;
+    submittedAt: string;
+    answers: Record<string, QuizAnswer>;
+    results?: Record<string, boolean>;
+  } | null;
+}
+
+export interface QuizResults {
+  questions: QuizQuestion[];
+  attempts: {
+    id: string;
+    member: { id: string; firstName: string; lastName: string; avatarUrl?: string | null };
+    answers: Record<string, QuizAnswer>;
+    results: Record<string, boolean>;
+    score: number;
+    total: number;
+    submittedAt: string;
+  }[];
+}
+
+export interface QuizRewards {
+  year: number;
+  month: number;
+  quizCount: number;
+  winners: { memberId: string; quizzes: number; score: number; total: number; member: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } }[];
 }
 
 export interface Announcement {
@@ -145,6 +185,7 @@ export interface AppNotification {
   channel: string;
   title: string;
   content: string;
+  url?: string | null;
   status: 'EN_ATTENTE' | 'ENVOYE' | 'ECHEC' | 'LU';
   createdAt: string;
 }

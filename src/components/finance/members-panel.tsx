@@ -82,7 +82,7 @@ export function MembersPanel({
         <div className="flex flex-1 items-center gap-3 lg:max-w-xl lg:justify-end">
           <div className="relative flex-1">
             <SearchIcon width={16} height={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
-            <input className="input !pl-10" placeholder="Rechercher un membre…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input data-no-emoji className="input !pl-10" placeholder="Rechercher un membre…" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <button className="btn-secondary shrink-0 !px-4" onClick={() => generate.mutate()} disabled={generate.isPending} title="Crée l'échéance de 500 FCFA du mois pour chaque membre actif">
             {generate.isPending ? <Spinner /> : <SparkleIcon width={16} height={16} />}

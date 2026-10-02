@@ -66,6 +66,7 @@ export function MemberPicker({
     <div className="relative">
       <SearchIcon width={16} height={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500" />
       <input
+        data-no-emoji
         className="input !pl-10"
         placeholder="Rechercher un membre (nom, prénom, code)…"
         value={query}

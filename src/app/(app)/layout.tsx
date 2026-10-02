@@ -7,6 +7,8 @@ import { DesktopSidebar, MobileSidebar, MobileTabBar } from '@/components/layout
 import { Topbar } from '@/components/layout/topbar';
 import { FullPageSpinner } from '@/components/ui/spinner';
 import { PushOptInBanner } from '@/components/notifications/push-opt-in-banner';
+import { EmojiAssist } from '@/components/ui/emoji-assist';
+import { QuizPrompt } from '@/components/quiz/quiz-prompt';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -40,6 +42,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <MobileTabBar onOpenMenu={() => setMenuOpen(true)} />
+      <EmojiAssist />
+      <QuizPrompt />
     </div>
   );
 }

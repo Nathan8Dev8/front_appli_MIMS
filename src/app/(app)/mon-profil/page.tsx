@@ -152,7 +152,7 @@ export default function MonProfilPage() {
             </div>
             <div>
               <label className="label">Téléphone</label>
-              <input className="input" value={current?.phone ?? ''} onChange={(e) => field('phone', e.target.value)} required />
+              <input type="tel" className="input" value={current?.phone ?? ''} onChange={(e) => field('phone', e.target.value)} required />
             </div>
             <div>
               <label className="label">E-mail</label>

@@ -61,6 +61,7 @@ function MembresContent() {
       <div className="relative mb-6 sm:max-w-sm">
         <SearchIcon width={18} height={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500" />
         <input
+          data-no-emoji
           className="input pl-11"
           placeholder="Rechercher un nom, un téléphone, un code…"
           value={search}
@@ -169,7 +170,7 @@ function CreateMemberModal({
           </div>
           <div>
             <label className="label">Téléphone</label>
-            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+            <input type="tel" className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
           </div>
           <div>
             <label className="label">E-mail (optionnel)</label>

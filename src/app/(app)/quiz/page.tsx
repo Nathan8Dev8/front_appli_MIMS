@@ -1,33 +1,61 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
-import { api, ApiError } from '@/lib/api-client';
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
-import { BrainIcon, PlusIcon, XIcon } from '@/components/ui/icons';
-import type { Quiz } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
+import { Avatar } from '@/components/ui/avatar';
+import { ArrowRightIcon, BrainIcon, ChevronRightIcon, PlusIcon } from '@/components/ui/icons';
+import { CreateQuizModal } from '@/components/quiz/create-quiz-modal';
+import { QUIZ_MANAGER_ROLES, ScoreBadge } from '@/components/quiz/score-badge';
+import { formatDate, formatMonth } from '@/lib/format';
+import type { QuizRewards, QuizSummary } from '@/lib/types';
+
+/** Lundi 00:00 de la semaine en cours (heure du téléphone). */
+function startOfWeek() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+}
+
+const monthParam = (offset: number) => {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 
 export default function QuizPage() {
   const { data: me } = useMe();
-  const canCreate = hasRole(me, ['SECRETAIRE', 'PRESIDENT_ADMIN', 'PASTEUR_ENCADREUR']);
+  const isManager = hasRole(me, QUIZ_MANAGER_ROLES);
   const [createOpen, setCreateOpen] = useState(false);
-  const [active, setActive] = useState<Quiz | null>(null);
 
-  const { data: quizzes, isLoading } = useQuery({ queryKey: ['quizzes'], queryFn: () => api.get<Quiz[]>('/quizzes') });
+  const { data: quizzes, isLoading } = useQuery({ queryKey: ['quizzes'], queryFn: () => api.get<QuizSummary[]>('/quizzes') });
+
+  const toDo = (quizzes ?? []).filter((q) => !q.closed && !q.myAttempt && !isManager);
+  const thisWeek = (quizzes ?? []).some((q) => new Date(q.publishedAt) >= startOfWeek());
+
+  // Historique groupé par mois de publication.
+  const byMonth = new Map<string, QuizSummary[]>();
+  for (const q of quizzes ?? []) {
+    const key = formatMonth(q.publishedAt);
+    byMonth.set(key, [...(byMonth.get(key) ?? []), q]);
+  }
 
   return (
     <div>
       <PageHeader
         eyebrow="Grandir ensemble"
         title="Quiz"
-        description="Des questions sur la Bible et la vie du groupe pour tester tes connaissances."
+        description="Un quiz par semaine sur la Bible et la vie du groupe. Un sans-faute tout le mois est récompensé 🏆"
         actions={
-          canCreate && (
+          isManager && (
             <button className="btn-primary" onClick={() => setCreateOpen(true)}>
               <PlusIcon width={16} height={16} /> Nouveau quiz
             </button>
@@ -35,186 +63,134 @@ export default function QuizPage() {
         }
       />
 
+      {isManager && !isLoading && !thisWeek && (
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="mb-6 flex w-full items-center gap-4 rounded-2xl bg-amber-50 p-4 text-left ring-1 ring-amber-200 transition hover:shadow-hover sm:p-5"
+        >
+          <span className="text-2xl">⏰</span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink-900">Pas encore de quiz cette semaine</span>
+            <span className="block text-sm text-ink-700">Le quiz est hebdomadaire : prépare celui de cette semaine.</span>
+          </span>
+          <ArrowRightIcon width={18} height={18} className="shrink-0 text-ink-700" />
+        </button>
+      )}
+
+      {isManager && <RewardsPanel />}
+
+      {toDo.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 font-display text-lg font-semibold text-ink-900">✍️ À faire</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {toDo.map((q) => (
+              <Link key={q.id} href={`/quiz/${q.id}`} className="animate-fade-up rounded-2xl bg-mims-gradient p-5 text-white shadow-card transition hover:shadow-hover">
+                <p className="text-xs font-semibold uppercase tracking-wide text-mims-100">
+                  {q.questionCount} question{q.questionCount > 1 ? 's' : ''}
+                  {q.closesAt && ` · jusqu'au ${formatDate(q.closesAt, { weekday: 'long', day: 'numeric', month: 'long' })}`}
+                </p>
+                <p className="mt-1 font-display text-lg font-semibold">{q.title}</p>
+                <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-mims-800">
+                  Commencer <ArrowRightIcon width={16} height={16} />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-mims-700" /></div>
       ) : !quizzes?.length ? (
-        <EmptyState icon={<BrainIcon />} title="Pas de quiz pour l'instant" description="Les prochains quiz s'afficheront ici." />
+        <EmptyState icon={<BrainIcon />} title="Pas encore de quiz" description="Le quiz de la semaine s'affichera ici." />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {quizzes.map((quiz) => (
-            <button key={quiz.id} onClick={() => setActive(quiz)} className="card animate-fade-up flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:shadow-hover">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gold-100 text-gold-500">
-                <BrainIcon width={20} height={20} />
-              </div>
-              <div>
-                <p className="font-semibold text-ink-900">{quiz.title}</p>
-                <p className="text-xs text-ink-500">{quiz.content.questions.length} question(s)</p>
-              </div>
-            </button>
-          ))}
-        </div>
+        <section>
+          <h2 className="mb-3 font-display text-lg font-semibold text-ink-900">🕰️ Historique</h2>
+          <div className="space-y-6">
+            {[...byMonth.entries()].map(([month, list]) => {
+              const done = list.filter((q) => q.myAttempt);
+              const score = done.reduce((s, q) => s + q.myAttempt!.score, 0);
+              const total = done.reduce((s, q) => s + q.myAttempt!.total, 0);
+              return (
+                <div key={month}>
+                  <div className="mb-2 flex items-baseline justify-between gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-mims-600">{month}</h3>
+                    {!isManager && done.length > 0 && (
+                      <span className="text-xs font-semibold text-ink-500">
+                        {done.length}/{list.length} quiz · {score}/{total}
+                      </span>
+                    )}
+                  </div>
+                  <ul className="space-y-2">
+                    {list.map((q) => (
+                      <li key={q.id}>
+                        <Link href={`/quiz/${q.id}`} className="card flex items-center gap-3 p-3.5 transition hover:-translate-y-0.5 hover:shadow-hover sm:p-4">
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gold-100 text-gold-500">
+                            <BrainIcon width={20} height={20} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold text-ink-900">{q.title}</span>
+                            <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+                              {formatDate(q.publishedAt)}
+                              <Badge variant={q.closed ? 'neutral' : 'success'}>{q.closed ? 'Terminé' : 'En cours'}</Badge>
+                              {isManager && <Badge variant="info">{q.participants ?? 0} participant{(q.participants ?? 0) > 1 ? 's' : ''}</Badge>}
+                            </span>
+                          </span>
+                          {!isManager &&
+                            (q.myAttempt ? (
+                              <ScoreBadge score={q.myAttempt.score} total={q.myAttempt.total} />
+                            ) : (
+                              <Badge variant={q.closed ? 'neutral' : 'warning'}>{q.closed ? 'Pas fait' : 'À faire'}</Badge>
+                            ))}
+                          <ChevronRightIcon width={18} height={18} className="shrink-0 text-ink-500" />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
-      <TakeQuizModal quiz={active} onClose={() => setActive(null)} />
-      <CreateQuizModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      {isManager && <CreateQuizModal open={createOpen} onClose={() => setCreateOpen(false)} />}
     </div>
   );
 }
 
-function TakeQuizModal({ quiz, onClose }: { quiz: Quiz | null; onClose: () => void }) {
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [result, setResult] = useState<{ score: number; total: number } | null>(null);
+/** Sans-faute du mois dernier (à récompenser) et du mois en cours (en bonne voie). */
+function RewardsPanel() {
+  const { data: last } = useQuery({ queryKey: ['quizzes', 'rewards', monthParam(-1)], queryFn: () => api.get<QuizRewards>(`/quizzes/rewards?month=${monthParam(-1)}`) });
+  const { data: current } = useQuery({ queryKey: ['quizzes', 'rewards', monthParam(0)], queryFn: () => api.get<QuizRewards>(`/quizzes/rewards?month=${monthParam(0)}`) });
 
-  const submit = useMutation({
-    mutationFn: () => api.post<{ score: number; total: number }>(`/quizzes/${quiz!.id}/submit`, { answers }),
-    onSuccess: (res) => setResult(res),
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Tes réponses n'ont pas pu être envoyées."),
-  });
-
-  function handleClose() {
-    setAnswers({});
-    setResult(null);
-    onClose();
-  }
-
-  if (!quiz) return null;
-
-  return (
-    <Modal open={!!quiz} onClose={handleClose} title={quiz.title} maxWidth="max-w-xl">
-      {result ? (
-        <div className="py-4 text-center">
-          <p className="font-display text-4xl font-semibold text-mims-700">{result.score}/{result.total}</p>
-          <p className="mt-2 text-sm text-ink-500">
-            {result.score === result.total ? 'Sans faute, bravo 🎉' : "Merci d'avoir joué."}
-          </p>
-          <button className="btn-primary mt-6" onClick={handleClose}>Fermer</button>
-        </div>
+  const block = (title: string, hint: string, data?: QuizRewards) => (
+    <div className="min-w-0">
+      <p className="text-sm font-semibold text-ink-900">{title}</p>
+      <p className="mb-2 text-xs text-ink-500">{data ? `${data.quizCount} quiz · ${hint}` : '…'}</p>
+      {data && !data.winners.length ? (
+        <p className="text-sm text-ink-500">Personne pour l'instant.</p>
       ) : (
-        <div className="space-y-5">
-          {quiz.content.questions.map((q, idx) => (
-            <div key={q.id}>
-              <p className="mb-2 text-sm font-semibold text-ink-900">{idx + 1}. {q.question}</p>
-              <div className="grid gap-2">
-                {q.choices.map((choice, choiceIdx) => (
-                  <button
-                    key={choiceIdx}
-                    onClick={() => setAnswers({ ...answers, [q.id]: choiceIdx })}
-                    className={`rounded-xl border px-4 py-2.5 text-left text-sm transition ${
-                      answers[q.id] === choiceIdx ? 'border-mims-700 bg-mims-50 font-semibold text-mims-800' : 'border-ink-300/40 hover:border-mims-300'
-                    }`}
-                  >
-                    {choice}
-                  </button>
-                ))}
-              </div>
-            </div>
+        <ul className="space-y-1.5">
+          {data?.winners.map((w) => (
+            <li key={w.memberId} className="flex items-center gap-2 text-sm">
+              <Avatar firstName={w.member.firstName} lastName={w.member.lastName} avatarUrl={w.member.avatarUrl} size="sm" />
+              <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{w.member.firstName} {w.member.lastName}</span>
+              <ScoreBadge score={w.score} total={w.total} />
+            </li>
           ))}
-          <button
-            className="btn-primary w-full"
-            disabled={Object.keys(answers).length < quiz.content.questions.length || submit.isPending}
-            onClick={() => submit.mutate()}
-          >
-            {submit.isPending && <Spinner />}
-            Valider mes réponses
-          </button>
-        </div>
+        </ul>
       )}
-    </Modal>
+    </div>
   );
-}
-
-function CreateQuizModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [title, setTitle] = useState('');
-  const [questions, setQuestions] = useState([{ id: crypto.randomUUID(), question: '', choices: ['', ''], correctIndex: 0 }]);
-
-  const create = useMutation({
-    mutationFn: () => api.post('/quizzes', { title, questions }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quizzes'] });
-      toast.success('Quiz publié ✅');
-      handleClose();
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le quiz n'a pas pu être créé."),
-  });
-
-  function handleClose() {
-    setTitle('');
-    setQuestions([{ id: crypto.randomUUID(), question: '', choices: ['', ''], correctIndex: 0 }]);
-    onClose();
-  }
-
-  function updateQuestion(id: string, patch: Partial<(typeof questions)[number]>) {
-    setQuestions(questions.map((q) => (q.id === id ? { ...q, ...patch } : q)));
-  }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Créer un quiz" maxWidth="max-w-xl">
-      <form
-        className="space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          create.mutate();
-        }}
-      >
-        <div>
-          <label className="label">Titre du quiz</label>
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </div>
-
-        {questions.map((q, qIdx) => (
-          <div key={q.id} className="rounded-xl border border-ink-300/40 p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <label className="label !mb-0">Question {qIdx + 1}</label>
-              {questions.length > 1 && (
-                <button type="button" onClick={() => setQuestions(questions.filter((x) => x.id !== q.id))} className="text-ink-500 hover:text-rose-600">
-                  <XIcon width={16} height={16} />
-                </button>
-              )}
-            </div>
-            <input className="input mb-3" value={q.question} onChange={(e) => updateQuestion(q.id, { question: e.target.value })} required />
-            <div className="space-y-2">
-              {q.choices.map((choice, cIdx) => (
-                <div key={cIdx} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`correct-${q.id}`}
-                    checked={q.correctIndex === cIdx}
-                    onChange={() => updateQuestion(q.id, { correctIndex: cIdx })}
-                    className="h-4 w-4 text-mims-700"
-                  />
-                  <input
-                    className="input"
-                    placeholder={`Choix ${cIdx + 1}`}
-                    value={choice}
-                    onChange={(e) => updateQuestion(q.id, { choices: q.choices.map((c, i) => (i === cIdx ? e.target.value : c)) })}
-                    required
-                  />
-                </div>
-              ))}
-            </div>
-            <button type="button" className="mt-2 text-xs font-semibold text-mims-700" onClick={() => updateQuestion(q.id, { choices: [...q.choices, ''] })}>
-              + Ajouter un choix
-            </button>
-          </div>
-        ))}
-
-        <button
-          type="button"
-          className="text-sm font-semibold text-mims-700"
-          onClick={() => setQuestions([...questions, { id: crypto.randomUUID(), question: '', choices: ['', ''], correctIndex: 0 }])}
-        >
-          + Ajouter une question
-        </button>
-
-        <div className="flex justify-end gap-3 border-t border-ink-300/30 pt-4">
-          <button type="button" className="btn-ghost" onClick={handleClose}>Annuler</button>
-          <button type="submit" className="btn-primary" disabled={create.isPending}>
-            {create.isPending && <Spinner />}
-            Publier le quiz
-          </button>
-        </div>
-      </form>
-    </Modal>
+    <section className="mb-8 rounded-2xl bg-gold-100/60 p-4 ring-1 ring-gold-300 sm:p-5">
+      <h2 className="mb-3 font-display text-lg font-semibold text-ink-900">🏆 Sans-faute du mois</h2>
+      <div className="grid gap-5 sm:grid-cols-2">
+        {block(`À récompenser · ${formatMonth(`${monthParam(-1)}-01`)}`, 'note maximale à tous les quiz', last)}
+        {block(`En bonne voie · ${formatMonth(`${monthParam(0)}-01`)}`, "sans faute jusqu'ici", current)}
+      </div>
+    </section>
   );
 }

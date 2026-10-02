@@ -19,7 +19,7 @@ import type { AppDocument, AppEvent, FinanceReport } from '@/lib/types';
 
 type Filter = 'tout' | 'assises' | 'evenements' | 'documents' | 'caisse';
 
-const DOC_TYPE_LABELS: Record<string, string> = { REGLEMENT: 'Règlement', PV: 'Procès-verbal', AUTRE: 'Document' };
+const DOC_TYPE_LABELS: Record<string, string> = { REGLEMENT: 'Règlement', ASSISE: "Rapport d'assise", PV: 'Procès-verbal', AUTRE: 'Document' };
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 type Entry =
@@ -79,7 +79,7 @@ function HistoriqueContent() {
     if (filter === 'tout' || filter === 'documents') {
       for (const document of documents ?? []) {
         if (document.status === 'BROUILLON') continue;
-        // Le PV d'une assise s'affiche déjà sur la ligne de l'assise.
+        // Le rapport d'une assise (ou le PV d'un événement) s'affiche déjà sur la ligne de l'événement.
         if (filter === 'tout' && document.reportFor) continue;
         entries.push({ kind: 'document', date: new Date(document.documentDate ?? document.publishedAt ?? document.createdAt), document });
       }
@@ -130,7 +130,7 @@ function HistoriqueContent() {
       <div className="mb-6 grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <div className="relative col-span-2 sm:flex-1">
           <SearchIcon width={18} height={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500" />
-          <input className="input pl-11" placeholder="Rechercher un titre, un lieu, une décision…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input data-no-emoji className="input pl-11" placeholder="Rechercher un titre, un lieu, une décision…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="input sm:w-40" value={year} onChange={(e) => setYear(e.target.value)} aria-label="Année">
           <option value="all">Toutes les années</option>
@@ -239,7 +239,7 @@ function EntryRow({ entry }: { entry: Entry }) {
               <>
                 {stats.attendanceTaken && <Badge variant="neutral">{stats.attended} présent{stats.attended > 1 ? 's' : ''}</Badge>}
                 {event.decisions && <Badge variant="success">Compte rendu</Badge>}
-                {event.reportDocument && <Badge variant="success">PV</Badge>}
+                {event.reportDocument && <Badge variant="success">{event.kind === 'ASSISE' ? 'Rapport' : 'PV'}</Badge>}
               </>
             )}
           </div>

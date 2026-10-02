@@ -79,7 +79,7 @@ export default function EvenementsPage() {
         href="/historique?type=evenements"
         className="mt-8 flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-sm font-semibold text-mims-700 shadow-soft ring-1 ring-ink-300/40 transition hover:bg-mims-50"
       >
-        Événements passés, assises et comptes rendus
+        🕰️ Événements passés, assises et comptes rendus
         <ArrowRightIcon width={16} height={16} />
       </Link>
 

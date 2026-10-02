@@ -67,26 +67,30 @@ self.addEventListener('push', (event) => {
         timestamp: Date.now(),
         silent: appVisible,
         vibrate: [120, 60, 120, 60, 260], // signature de vibration (Android)
-        data: { url: data.url || '/notifications' },
+        data: { url: data.url || '/notifications', id: data.id },
       });
     })(),
   );
 });
 
-// Au clic : ramène l'appli au premier plan sur la page concernée, sinon l'ouvre.
+// Au toucher : si l'appli est déjà ouverte, on la ramène au premier plan et on lui
+// demande d'aller sur la page concernée (client.navigate échoue sur iPhone et sur
+// un onglet pas encore contrôlé) ; sinon on l'ouvre directement sur cette page.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/notifications';
+  const { url = '/notifications', id } = event.notification.data || {};
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      for (const client of windowClients) {
-        if ('focus' in client) {
-          client.navigate(targetUrl);
-          return client.focus();
-        }
+    (async () => {
+      const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const client = windows.find((c) => new URL(c.url).origin === self.location.origin);
+      if (client) {
+        await client.focus().catch(() => undefined);
+        client.postMessage({ type: 'navigate', url, id });
+        return;
       }
-      return clients.openWindow(targetUrl);
-    }),
+      // ?notif=… permet à l'appli de marquer la notification comme lue à l'ouverture.
+      await clients.openWindow(id ? `${url}${url.includes('?') ? '&' : '?'}notif=${id}` : url);
+    })(),
   );
 });

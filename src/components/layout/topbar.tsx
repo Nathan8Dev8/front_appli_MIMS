@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api-client';
@@ -10,22 +11,23 @@ import { useAuthStore } from '@/store/auth-store';
 import { Avatar } from '@/components/ui/avatar';
 import { BellIcon } from '@/components/ui/icons';
 import { playNotificationChime } from '@/lib/sound';
-
-interface NotificationItem {
-  id: string;
-  status: string;
-  title: string;
-  content: string;
-}
+import { notificationUrl } from '@/lib/notifications';
+import type { AppNotification } from '@/lib/types';
 
 export function Topbar() {
   const member = useAuthStore((s) => s.member);
   const knownUnreadIds = useRef<Set<string> | null>(null);
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const markRead = (id: string) =>
+    api
+      .patch(`/notifications/${id}/read`)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
+      .catch(() => undefined);
 
   const { data: notifications } = useQuery({
     queryKey: ['notifications', 'me'],
-    queryFn: () => api.get<NotificationItem[]>('/notifications/me'),
+    queryFn: () => api.get<AppNotification[]>('/notifications/me'),
     refetchInterval: 30_000,
   });
 
@@ -44,10 +46,27 @@ export function Topbar() {
     const fresh = notifications.filter((n) => n.status !== 'LU' && !knownUnreadIds.current!.has(n.id));
     if (fresh.length > 0) {
       playNotificationChime();
-      toast(fresh.length === 1 ? fresh[0].title : `${fresh.length} nouvelles notifications`, { icon: '🔔' });
+      // Le message est cliquable : il ouvre la page concernée (ou la liste s'il y en a plusieurs).
+      const href = fresh.length === 1 ? notificationUrl(fresh[0]) : '/notifications';
+      toast(
+        (t) => (
+          <button
+            className="text-left"
+            onClick={() => {
+              toast.dismiss(t.id);
+              if (fresh.length === 1) markRead(fresh[0].id);
+              router.push(href);
+            }}
+          >
+            <span className="block font-semibold">{fresh.length === 1 ? fresh[0].title : `${fresh.length} nouvelles notifications`}</span>
+            <span className="text-xs text-mims-700">Toucher pour ouvrir</span>
+          </button>
+        ),
+        { icon: '🔔', duration: 6000 },
+      );
     }
     knownUnreadIds.current = unreadIds;
-  }, [notifications]);
+  }, [notifications, router]);
 
   // Une notification push arrive pendant que l'appli est ouverte : on recharge tout de suite
   // (au lieu d'attendre le prochain passage toutes les 30 s) ; l'effet ci-dessus joue le son.
@@ -55,10 +74,21 @@ export function Topbar() {
     if (!('serviceWorker' in navigator)) return;
     const onMessage = (e: MessageEvent) => {
       if (e.data?.type === 'push') queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      // Notification système touchée alors que l'appli était déjà ouverte : on va sur la page concernée.
+      if (e.data?.type === 'navigate' && typeof e.data.url === 'string') {
+        if (e.data.id) markRead(e.data.id);
+        router.push(e.data.url);
+      }
     };
     navigator.serviceWorker.addEventListener('message', onMessage);
     return () => navigator.serviceWorker.removeEventListener('message', onMessage);
-  }, [queryClient]);
+  }, [queryClient, router]);
+
+  // Appli ouverte depuis une notification système (?notif=<id>) : on la marque comme lue.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('notif');
+    if (id) markRead(id);
+  }, []);
 
   const unread = notifications?.filter((n) => n.status !== 'LU').length ?? 0;
 

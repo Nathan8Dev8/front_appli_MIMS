@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
-import { BellIcon } from '@/components/ui/icons';
+import { BellIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { timeAgo } from '@/lib/format';
+import { notificationUrl } from '@/lib/notifications';
 import type { AppNotification } from '@/lib/types';
 
 const TYPE_TONE: Record<string, string> = {
@@ -50,11 +52,13 @@ export default function NotificationsPage() {
       ) : (
         <ul className="space-y-3">
           {notifications.map((n) => (
-            <li
-              key={n.id}
-              onClick={() => n.status !== 'LU' && markRead.mutate(n.id)}
-              className={`card flex cursor-pointer items-start gap-4 p-4 transition hover:-translate-y-0.5 hover:shadow-hover ${n.status !== 'LU' ? 'ring-1 ring-mims-200' : ''}`}
-            >
+            <li key={n.id}>
+              {/* Toucher une notification ouvre la page concernée (et la marque comme lue). */}
+              <Link
+                href={notificationUrl(n)}
+                onClick={() => n.status !== 'LU' && markRead.mutate(n.id)}
+                className={`card flex items-start gap-4 p-4 transition hover:-translate-y-0.5 hover:shadow-hover ${n.status !== 'LU' ? 'ring-1 ring-mims-200' : ''}`}
+              >
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${TYPE_TONE[n.type] ?? 'bg-mims-50 text-mims-700'}`}>
                 <BellIcon width={18} height={18} />
               </div>
@@ -66,6 +70,8 @@ export default function NotificationsPage() {
                 <p className="mt-0.5 text-sm text-ink-700">{n.content}</p>
                 <p className="mt-1.5 text-xs text-ink-500">{timeAgo(n.createdAt)}</p>
               </div>
+              <ChevronRightIcon width={18} height={18} className="mt-2.5 shrink-0 text-ink-500" />
+              </Link>
             </li>
           ))}
         </ul>

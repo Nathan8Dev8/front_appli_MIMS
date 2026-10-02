@@ -30,7 +30,7 @@ export function missingReport(e: AppEvent): string[] {
   const missing: string[] = [];
   if (!eventStats(e).attendanceTaken) missing.push('présences');
   if (!e.decisions) missing.push('décisions');
-  if (e.kind === 'ASSISE' && !e.reportDocument) missing.push('PV');
+  if (e.kind === 'ASSISE' && !e.reportDocument) missing.push('rapport');
   return missing;
 }
 

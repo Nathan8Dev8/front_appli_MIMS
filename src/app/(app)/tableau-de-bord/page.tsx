@@ -116,7 +116,7 @@ export default function DashboardPage() {
 
       <div className="card mt-6 animate-fade-up p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold text-ink-900">Événements à venir</h2>
+          <h2 className="font-display text-lg font-semibold text-ink-900">📅 Événements à venir</h2>
           <Link href="/evenements" className="flex items-center gap-1 text-sm font-semibold text-mims-700 hover:text-mims-800">
             Tout voir <ArrowRightIcon width={16} height={16} />
           </Link>
@@ -149,7 +149,7 @@ export default function DashboardPage() {
 
       {isStaff && (
         <div className="mt-10">
-          <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">Vue d'ensemble du bureau</h2>
+          <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">🧭 Vue d'ensemble du bureau</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Link href="/membres" className="block">
               <StatCard label="Membres actifs" value={activeMembers === undefined ? '—' : String(activeMembers)} icon={UsersIcon} />

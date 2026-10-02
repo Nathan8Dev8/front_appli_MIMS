@@ -106,7 +106,7 @@ export default function EventDetailPage() {
       </div>
 
       {event.agenda && (
-        <Section title="Ordre du jour">
+        <Section title="📋 Ordre du jour">
           <p className="whitespace-pre-line text-sm leading-relaxed text-ink-700">{event.agenda}</p>
         </Section>
       )}
@@ -115,7 +115,7 @@ export default function EventDetailPage() {
       {past && !cancelled && (
         <>
           <Section
-            title="Présences"
+            title="✋ Présences"
             action={
               isOrganizer && (
                 <button className="btn-secondary !px-4 !py-2 text-xs" onClick={() => setAttendanceOpen(true)}>
@@ -148,7 +148,7 @@ export default function EventDetailPage() {
           <DecisionsSection event={event} canEdit={isOrganizer} />
 
           <Section
-            title="Procès-verbal"
+            title={event.kind === 'ASSISE' ? "📄 Rapport d'assise" : '📄 Procès-verbal'}
             action={canUploadPv && <PvUploadButton eventId={event.id} replace={!!event.reportDocument} />}
           >
             {event.reportDocument ? (
@@ -167,7 +167,10 @@ export default function EventDetailPage() {
                 <DownloadIcon width={18} height={18} className="shrink-0 text-mims-700" />
               </button>
             ) : (
-              <p className="text-sm text-ink-500">Pas encore de PV.{canUploadPv && ' Ajoute-le : il sera aussi rangé dans Documents.'}</p>
+              <p className="text-sm text-ink-500">
+                {event.kind === 'ASSISE' ? 'Pas encore de rapport.' : 'Pas encore de PV.'}
+                {canUploadPv && ' Ajoute-le : il sera aussi rangé dans Documents.'}
+              </p>
             )}
           </Section>
         </>
@@ -220,7 +223,7 @@ function DecisionsSection({ event, canEdit }: { event: AppEvent; canEdit: boolea
 
   return (
     <Section
-      title={event.kind === 'ASSISE' ? 'Décisions & résolutions' : 'Compte rendu'}
+      title={event.kind === 'ASSISE' ? '📝 Décisions & résolutions' : '📝 Compte rendu'}
       action={
         canEdit && draft === null && (
           <button className="btn-secondary !px-4 !py-2 text-xs" onClick={() => setDraft(event.decisions ?? '')}>
@@ -269,7 +272,7 @@ function PvUploadButton({ eventId, replace }: { eventId: string; replace: boolea
     },
     onSuccess: () => {
       invalidate();
-      toast.success('PV publié, tout le monde est prévenu ✅');
+      toast.success('Publié, tout le monde est prévenu ✅');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le PV n'a pas pu être envoyé."),
   });
@@ -277,7 +280,7 @@ function PvUploadButton({ eventId, replace }: { eventId: string; replace: boolea
   return (
     <label className={`btn-secondary cursor-pointer !px-4 !py-2 text-xs ${upload.isPending ? 'pointer-events-none opacity-60' : ''}`}>
       {upload.isPending ? <Spinner /> : <UploadIcon width={14} height={14} />}
-      {replace ? 'Remplacer' : 'Ajouter le PV'}
+      {replace ? 'Remplacer' : 'Ajouter le fichier'}
       <input
         type="file"
         className="hidden"
@@ -368,7 +371,7 @@ function AttendanceModal({ open, onClose, event }: { open: boolean; onClose: () 
     <Modal open={open} onClose={close} title="Faire l'appel" description="Touche un nom pour le marquer présent.">
       <div className="relative mb-3">
         <SearchIcon width={18} height={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500" />
-        <input className="input pl-11" placeholder="Chercher un membre…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input data-no-emoji className="input pl-11" placeholder="Chercher un membre…" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
       <div className="mb-3 flex items-center justify-between text-xs">
         <span className="font-semibold text-ink-700">{selected.size} présent{selected.size > 1 ? 's' : ''}</span>
