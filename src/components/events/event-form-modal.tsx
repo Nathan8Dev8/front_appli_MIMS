@@ -8,6 +8,8 @@ import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { EVENT_KIND_LABELS, toLocalInput } from '@/lib/events';
 import type { AppEvent, EventKind } from '@/lib/types';
+import { LocationPicker } from './location-picker';
+import { formatCoords } from './event-map';
 
 const EMPTY = { kind: 'ACTIVITE' as EventKind, title: '', description: '', location: '', startsAt: '', agenda: '' };
 
@@ -25,6 +27,8 @@ export function EventFormModal({
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY);
+  const [point, setPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -40,11 +44,19 @@ export function EventFormModal({
           }
         : { ...EMPTY, kind: defaultKind ?? 'ACTIVITE' },
     );
+    const p = event?.latitude != null && event?.longitude != null ? { lat: event.latitude, lng: event.longitude } : null;
+    setPoint(p);
+    setShowMap(false);
   }, [open, event, defaultKind]);
 
   const save = useMutation({
     mutationFn: () => {
-      const body = { ...form, startsAt: new Date(form.startsAt).toISOString() };
+      const body = {
+        ...form,
+        startsAt: new Date(form.startsAt).toISOString(),
+        latitude: point?.lat ?? null,
+        longitude: point?.lng ?? null,
+      };
       return event ? api.patch(`/events/${event.id}`, body) : api.post('/events', body);
     },
     onSuccess: () => {
@@ -107,8 +119,27 @@ export function EventFormModal({
           </div>
           <div>
             <label className="label" htmlFor="ev-location">Lieu</label>
-            <input id="ev-location" className="input" value={form.location} onChange={set('location')} />
+            <input id="ev-location" className="input" value={form.location} onChange={set('location')} placeholder="Ex. Temple de Bonamoussadi" />
           </div>
+        </div>
+        <div>
+          {showMap ? (
+            <LocationPicker value={point} onChange={setPoint} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowMap(true)}
+              className="flex w-full items-center gap-3 rounded-xl border border-dashed border-ink-300/70 px-4 py-3 text-left text-sm transition hover:border-mims-400"
+            >
+              <span className="text-xl">📍</span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold text-ink-900">{point ? 'Position GPS enregistrée' : 'Placer le lieu sur la carte'}</span>
+                <span className="block truncate text-xs text-ink-500">
+                  {point ? `${formatCoords(point.lat, point.lng)} · toucher pour modifier` : 'Optionnel : les membres auront l’itinéraire'}
+                </span>
+              </span>
+            </button>
+          )}
         </div>
         {isAssise ? (
           <div>

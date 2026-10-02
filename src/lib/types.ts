@@ -77,6 +77,8 @@ export interface AppEvent {
   title: string;
   description?: string | null;
   location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   agenda?: string | null;
   decisions?: string | null;
   startsAt: string;

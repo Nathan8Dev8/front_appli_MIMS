@@ -25,6 +25,7 @@ import {
   UsersIcon,
 } from '@/components/ui/icons';
 import { EventFormModal } from '@/components/events/event-form-modal';
+import { EventMap, directionsUrl, formatCoords } from '@/components/events/event-map';
 import { RsvpButtons } from '@/components/events/rsvp-buttons';
 import { DOCUMENT_MANAGER_ROLES, EVENT_KIND_LABELS, ORGANIZER_ROLES, eventStats, isCancelled, isPast } from '@/lib/events';
 import { STAFF_ROLES } from '@/lib/nav';
@@ -105,6 +106,31 @@ export default function EventDetailPage() {
         </div>
       </div>
 
+      {!cancelled && <RsvpLists event={event} meId={me?.id} />}
+
+      {event.latitude != null && event.longitude != null && (
+        <Section title="📍 Lieu">
+          {event.location && <p className="mb-3 text-sm font-medium text-ink-900">{event.location}</p>}
+          <EventMap lat={event.latitude} lng={event.longitude} className="h-56" />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a href={directionsUrl(event.latitude, event.longitude)} target="_blank" rel="noopener noreferrer" className="btn-primary !py-2">
+              🧭 Itinéraire
+            </a>
+            <button
+              className="btn-secondary !py-2"
+              onClick={() =>
+                navigator.clipboard
+                  .writeText(formatCoords(event.latitude!, event.longitude!))
+                  .then(() => toast.success('Coordonnées copiées 📋'))
+                  .catch(() => toast.error('Copie impossible : ' + formatCoords(event.latitude!, event.longitude!)))
+              }
+            >
+              📋 {formatCoords(event.latitude, event.longitude)}
+            </button>
+          </div>
+        </Section>
+      )}
+
       {event.agenda && (
         <Section title="📋 Ordre du jour">
           <p className="whitespace-pre-line text-sm leading-relaxed text-ink-700">{event.agenda}</p>
@@ -184,6 +210,46 @@ export default function EventDetailPage() {
         </>
       )}
     </div>
+  );
+}
+
+/** Qui a répondu « Je serai là » et qui « Pas dispo » : visible par tous les membres. */
+function RsvpLists({ event, meId }: { event: AppEvent; meId?: string }) {
+  const coming = event.participations.filter((p) => p.response === 'PRESENT' && p.member);
+  const notComing = event.participations.filter((p) => p.response === 'ABSENT' && p.member);
+  const byName = (a: (typeof coming)[number], b: (typeof coming)[number]) =>
+    `${a.member!.firstName} ${a.member!.lastName}`.localeCompare(`${b.member!.firstName} ${b.member!.lastName}`, 'fr');
+
+  const column = (title: string, list: typeof coming, tone: string, empty: string) => (
+    <div className="min-w-0">
+      <p className={`mb-2 text-sm font-semibold ${tone}`}>
+        {title} ({list.length})
+      </p>
+      {list.length ? (
+        <ul className="space-y-1.5">
+          {[...list].sort(byName).map((p) => (
+            <li key={p.memberId} className="flex items-center gap-2 text-sm text-ink-900">
+              <Avatar firstName={p.member!.firstName} lastName={p.member!.lastName} avatarUrl={p.member!.avatarUrl} size="sm" />
+              <span className="truncate">
+                {p.member!.firstName} {p.member!.lastName}
+                {p.memberId === meId && <span className="text-ink-500"> (toi)</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-ink-500">{empty}</p>
+      )}
+    </div>
+  );
+
+  return (
+    <Section title="🙋 Qui sera là ?">
+      <div className="grid gap-5 sm:grid-cols-2">
+        {column('✅ Seront là', coming, 'text-emerald-700', 'Personne pour l’instant.')}
+        {column('❌ Pas dispo', notComing, 'text-rose-700', 'Personne pour l’instant.')}
+      </div>
+    </Section>
   );
 }
 
