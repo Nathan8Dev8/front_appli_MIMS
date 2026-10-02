@@ -30,20 +30,7 @@ export async function enablePushNotifications(): Promise<{ success: boolean; rea
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return { success: false, reason: permission };
 
-    const registration = await navigator.serviceWorker.ready;
-    const subscription =
-      (await registration.pushManager.getSubscription()) ??
-      (await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      }));
-
-    const json = subscription.toJSON();
-    await api.post('/push/subscribe', {
-      endpoint: json.endpoint,
-      keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
-    });
-
+    await subscribeWithCurrentKey();
     return { success: true };
   } catch (err) {
     // Ne jamais laisser une exception non gérée remonter jusqu'à l'appelant :
@@ -52,6 +39,35 @@ export async function enablePushNotifications(): Promise<{ success: boolean; rea
     console.error('[push] échec de l\'activation des notifications :', err);
     return { success: false, reason: 'error' };
   }
+}
+
+/** Même clé ? (les clés VAPID du serveur peuvent changer, ex. renouvellement après une fuite) */
+function sameKey(subscription: PushSubscription, key: Uint8Array) {
+  const current = subscription.options.applicationServerKey;
+  if (!current) return false;
+  const bytes = new Uint8Array(current);
+  return bytes.length === key.length && bytes.every((b, i) => b === key[i]);
+}
+
+/** Abonne cet appareil avec la clé actuelle du serveur (réabonne si l'ancienne clé a changé). */
+async function subscribeWithCurrentKey() {
+  const key = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+  if (subscription && !sameKey(subscription, key)) {
+    await subscription.unsubscribe();
+    subscription = null;
+  }
+  subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  const json = subscription.toJSON();
+  await api.post('/push/subscribe', { endpoint: json.endpoint, keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth } });
+}
+
+/** À l'ouverture : si les notifications sont autorisées, l'abonnement est remis à jour sans rien demander. */
+export async function syncPushSubscription() {
+  if (getPushSupportState() !== 'granted' || !VAPID_PUBLIC_KEY) return;
+  if (!(await isPushSubscribed())) return;
+  await subscribeWithCurrentKey().catch(() => undefined);
 }
 
 export async function disablePushNotifications(): Promise<void> {

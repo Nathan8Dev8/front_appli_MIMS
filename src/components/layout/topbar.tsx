@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { BellIcon } from '@/components/ui/icons';
 import { playNotificationChime } from '@/lib/sound';
 import { notificationUrl } from '@/lib/notifications';
+import { syncPushSubscription } from '@/lib/push';
 
 export function Topbar() {
   const member = useAuthStore((s) => s.member);
@@ -81,6 +82,11 @@ export function Topbar() {
     navigator.serviceWorker.addEventListener('message', onMessage);
     return () => navigator.serviceWorker.removeEventListener('message', onMessage);
   }, [queryClient, router]);
+
+  // Remet l'abonnement push à jour (ex. après un changement des clés du serveur).
+  useEffect(() => {
+    syncPushSubscription();
+  }, []);
 
   // Appli ouverte depuis une notification système (?notif=<id>) : on la marque comme lue.
   useEffect(() => {
