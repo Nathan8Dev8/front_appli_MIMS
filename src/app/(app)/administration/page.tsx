@@ -172,7 +172,7 @@ function FeedbackTab({ items }: { items?: AppFeedback[] }) {
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   const update = useMutation({
-    mutationFn: (v: { id: string; status: FeedbackStatus; adminNote?: string }) => api.patch(`/feedback/${v.id}`, v),
+    mutationFn: ({ id, ...body }: { id: string; status?: FeedbackStatus; adminNote?: string }) => api.patch(`/feedback/${id}`, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feedback'] });
       toast.success('Mis à jour, la personne est prévenue ✅');
@@ -233,6 +233,13 @@ function FeedbackTab({ items }: { items?: AppFeedback[] }) {
                   onChange={(e) => setNotes({ ...notes, [f.id]: e.target.value })}
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    className="btn-primary !px-3.5 !py-1.5 text-xs"
+                    disabled={update.isPending || !(notes[f.id] ?? '').trim() || notes[f.id].trim() === (f.adminNote ?? '')}
+                    onClick={() => update.mutate({ id: f.id, adminNote: notes[f.id] })}
+                  >
+                    {update.isPending && <Spinner />} Envoyer la réponse
+                  </button>
                   {(['PRIS_EN_COMPTE', 'TERMINE', 'NON_RETENU'] as const).map((status) => (
                     <button
                       key={status}

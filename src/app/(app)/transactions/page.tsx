@@ -133,6 +133,15 @@ function TransactionsContent() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le paiement n'a pas pu être validé."),
   });
 
+  const regenerate = useMutation({
+    mutationFn: (id: string) => api.post(`/payments/${id}/receipt`),
+    onSuccess: () => {
+      toast.success('Reçu régénéré et envoyé au membre ✅');
+      refresh();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le reçu n'a pas pu être régénéré."),
+  });
+
   function reset() {
     setSearch('');
     setDirection('');
@@ -285,6 +294,11 @@ function TransactionsContent() {
                       onClick={() => downloadFile(`/receipts/${t.receiptId}/download`, `recu-${t.reference}.pdf`).catch((e) => toast.error(e instanceof ApiError ? e.message : "Le téléchargement n'a pas marché."))}
                     >
                       Reçu
+                    </button>
+                  )}
+                  {t.kind === 'PAYMENT' && t.status === 'VALIDE' && t.amount > 0 && !t.receiptId && (
+                    <button className="text-xs font-semibold text-amber-600 hover:text-amber-700" onClick={() => regenerate.mutate(t.id)} disabled={regenerate.isPending}>
+                      Régénérer le reçu
                     </button>
                   )}
                   {t.status === 'EN_ATTENTE' && (

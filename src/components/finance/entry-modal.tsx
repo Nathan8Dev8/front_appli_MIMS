@@ -82,7 +82,7 @@ export function EntryModal({
 
   const record = useMutation({
     mutationFn: () =>
-      api.post('/payments', {
+      api.post<{ receipt: unknown }>('/payments', {
         memberId,
         amount: amountNum,
         method,
@@ -92,8 +92,9 @@ export function EntryModal({
         note: note.trim() || undefined,
         autoConfirm: true,
       }),
-    onSuccess: () => {
-      toast.success(`${formatFcfa(amountNum)} encaissés, reçu envoyé à ${member?.firstName ?? 'le membre'} ✅`);
+    onSuccess: (res) => {
+      if (res?.receipt) toast.success(`${formatFcfa(amountNum)} encaissés, reçu envoyé à ${member?.firstName ?? 'le membre'} ✅`);
+      else toast(`${formatFcfa(amountNum)} encaissés, mais le reçu n'a pas pu être créé. Régénère-le depuis Transactions.`, { icon: '⚠️', duration: 8000 });
       queryClient.invalidateQueries({ queryKey: ['finance'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['dues'] });
