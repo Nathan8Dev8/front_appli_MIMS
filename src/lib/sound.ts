@@ -15,7 +15,11 @@ function getContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   const AudioCtor = window.AudioContext ?? (window as any).webkitAudioContext;
   if (!AudioCtor) return null;
-  if (!sharedContext) sharedContext = new AudioCtor();
+  // Un contexte fermé (ex. iOS après une longue mise en veille) ne rejouera plus rien : on en recrée un.
+  if (!sharedContext || sharedContext.state === 'closed') {
+    sharedContext = new AudioCtor();
+    soundBuffer = null;
+  }
   return sharedContext;
 }
 
@@ -39,10 +43,13 @@ export function primeNotificationSound() {
 
 export async function playNotificationChime() {
   const ctx = getContext();
-  if (!ctx) return;
-  await ctx.resume().catch(() => undefined);
-  const buffer = await loadSound(ctx);
-  if (!buffer) return;
+  if (ctx) await ctx.resume().catch(() => undefined);
+  const buffer = ctx ? await loadSound(ctx) : null;
+  // Contexte resté en pause (appli revenue de l'arrière-plan…) : simple lecteur audio en secours.
+  if (!ctx || !buffer || ctx.state !== 'running') {
+    await new Audio(SOUND_URL).play().catch(() => undefined);
+    return;
+  }
   const source = ctx.createBufferSource();
   source.buffer = buffer;
   source.connect(ctx.destination);

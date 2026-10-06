@@ -15,12 +15,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
-  // Débloque l'audio dès la première interaction : les navigateurs refusent
-  // de jouer un son tant qu'aucun geste utilisateur n'a eu lieu sur la page.
+  // Débloque l'audio à chaque interaction : les navigateurs refusent de jouer un son
+  // sans geste de l'utilisateur, et le remettent en pause quand l'appli passe en
+  // arrière-plan (téléphone verrouillé, autre appli…). Un seul déblocage ne suffit pas.
   useEffect(() => {
     const unlock = () => primeNotificationSound();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
     return () => {
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);

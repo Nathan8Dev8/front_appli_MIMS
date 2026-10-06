@@ -13,7 +13,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { BellIcon } from '@/components/ui/icons';
 import { playNotificationChime } from '@/lib/sound';
 import { notificationUrl } from '@/lib/notifications';
-import { syncPushSubscription } from '@/lib/push';
+import { isPushSubscribed, syncPushSubscription } from '@/lib/push';
 
 export function Topbar() {
   const member = useAuthStore((s) => s.member);
@@ -44,7 +44,11 @@ export function Topbar() {
 
     const fresh = notifications.filter((n) => n.status !== 'LU' && !knownUnreadIds.current!.has(n.id));
     if (fresh.length > 0) {
-      playNotificationChime();
+      // Appareil abonné au push : la notification système sonne déjà, on ne double pas le son.
+      // Sinon (push refusé, non pris en charge…), c'est l'appli qui sonne.
+      isPushSubscribed().then((subscribed) => {
+        if (!subscribed) playNotificationChime();
+      });
       // Le message est cliquable : il ouvre la page concernée (ou la liste s'il y en a plusieurs).
       const href = fresh.length === 1 ? notificationUrl(fresh[0]) : '/notifications';
       toast(
