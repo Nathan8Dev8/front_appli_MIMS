@@ -18,6 +18,7 @@ import { formatDate, formatFcfa } from '@/lib/format';
 import type { AppDocument, AppEvent, FinanceReport } from '@/lib/types';
 
 type Filter = 'tout' | 'assises' | 'evenements' | 'documents' | 'caisse';
+type When = 'passes' | 'a-venir';
 
 const DOC_TYPE_LABELS: Record<string, string> = { REGLEMENT: 'Règlement', ASSISE: "Rapport d'assise", PV: 'Procès-verbal', AUTRE: 'Document' };
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -45,6 +46,9 @@ function HistoriqueContent() {
   const [search, setSearch] = useState('');
   const [year, setYear] = useState<string>(String(new Date().getFullYear()));
   const [month, setMonth] = useState<string>('');
+  const [when, setWhen] = useState<When>('passes');
+  const datedFilter = filter !== 'documents' && filter !== 'caisse';
+  const upcoming = datedFilter && when === 'a-venir';
 
   const { data: events, isLoading: loadingEvents } = useQuery({ queryKey: ['events'], queryFn: () => api.get<AppEvent[]>('/events') });
   const { data: documents, isLoading: loadingDocs } = useQuery({
@@ -68,15 +72,16 @@ function HistoriqueContent() {
     const now = new Date();
     const entries: Entry[] = [];
 
-    if (filter !== 'documents' && filter !== 'caisse') {
+    if (datedFilter) {
       for (const event of events ?? []) {
         const date = new Date(event.startsAt);
-        if (date > now) continue;
+        if (upcoming ? date <= now : date > now) continue;
         if (filter === 'assises' && event.kind !== 'ASSISE') continue;
         entries.push({ kind: 'event', date, event });
       }
     }
-    if (filter === 'tout' || filter === 'documents') {
+    // Documents et caisse n'ont pas d'« à venir » : on ne les montre qu'avec les événements passés.
+    if (!upcoming && (filter === 'tout' || filter === 'documents')) {
       for (const document of documents ?? []) {
         if (document.status === 'BROUILLON') continue;
         // Le rapport d'une assise (ou le PV d'un événement) s'affiche déjà sur la ligne de l'événement.
@@ -84,7 +89,7 @@ function HistoriqueContent() {
         entries.push({ kind: 'document', date: new Date(document.documentDate ?? document.publishedAt ?? document.createdAt), document });
       }
     }
-    if (canSeeCaisse && report && (filter === 'tout' || filter === 'caisse')) {
+    if (!upcoming && canSeeCaisse && report && (filter === 'tout' || filter === 'caisse')) {
       for (const m of report.byMonth) {
         const date = new Date(report.year, m.month - 1, 1);
         if (date > now || (!m.total && !m.exits)) continue;
@@ -97,7 +102,8 @@ function HistoriqueContent() {
       .filter((e) => year === 'all' || e.date.getFullYear() === Number(year))
       .filter((e) => !month || e.date.getMonth() === Number(month))
       .filter((e) => !q || entryText(e).toLowerCase().includes(q))
-      .sort((a, b) => b.date.getTime() - a.date.getTime());
+      // Passé : le plus récent d'abord. À venir : le plus proche d'abord.
+      .sort((a, b) => (upcoming ? a.date.getTime() - b.date.getTime() : b.date.getTime() - a.date.getTime()));
 
     const byMonth = new Map<string, Entry[]>();
     for (const e of visible) {
@@ -105,7 +111,7 @@ function HistoriqueContent() {
       byMonth.set(key, [...(byMonth.get(key) ?? []), e]);
     }
     return [...byMonth.entries()];
-  }, [events, documents, report, filter, search, year, month, canSeeCaisse]);
+  }, [events, documents, report, filter, search, year, month, canSeeCaisse, datedFilter, upcoming]);
 
   const tabs: { value: Filter; label: string }[] = [
     { value: 'tout', label: 'Tout' },
@@ -115,7 +121,7 @@ function HistoriqueContent() {
     ...(canSeeCaisse ? [{ value: 'caisse' as const, label: 'Caisse' }] : []),
   ];
 
-  const hasFilters = !!(search || month || year !== String(new Date().getFullYear()));
+  const hasFilters = !!(search || month || when !== 'passes' || year !== String(new Date().getFullYear()));
 
   return (
     <div>
@@ -126,6 +132,18 @@ function HistoriqueContent() {
       />
 
       <Tabs value={filter} onChange={setFilter} items={tabs} className="mb-4" />
+
+      {datedFilter && (
+        <Tabs
+          value={when}
+          onChange={setWhen}
+          items={[
+            { value: 'passes', label: '🕰️ Passés' },
+            { value: 'a-venir', label: '📅 À venir' },
+          ]}
+          className="mb-4"
+        />
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <div className="relative col-span-2 sm:flex-1">
@@ -146,6 +164,7 @@ function HistoriqueContent() {
             onClick={() => {
               setSearch('');
               setMonth('');
+              setWhen('passes');
               setYear(String(new Date().getFullYear()));
             }}
           >
@@ -176,7 +195,7 @@ function HistoriqueContent() {
       {loadingEvents || loadingDocs ? (
         <div className="flex justify-center py-16"><Spinner className="h-7 w-7 text-mims-700" /></div>
       ) : !groups.length ? (
-        <EmptyState icon={<ClockIcon />} title="Rien sur cette période" description="Change d'année, de mois ou de recherche." />
+        <EmptyState icon={<ClockIcon />} title={upcoming ? 'Aucun événement à venir sur cette période' : 'Rien sur cette période'} description="Change d'année, de mois ou de recherche." />
       ) : (
         <div className="space-y-8">
           {groups.map(([label, items]) => (

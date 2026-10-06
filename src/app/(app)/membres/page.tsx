@@ -372,6 +372,8 @@ function MemberDetailModal({ member, onClose, isAdmin }: { member: MemberSummary
         </div>
       </div>
 
+      {hasRole(me, ['PRESIDENT_ADMIN']) && <ResetPassword key={member.id} member={member} />}
+
       {isAdmin && (
         <div className="mt-6 border-t border-ink-300/30 pt-5">
           <p className="label">Changer le statut</p>
@@ -392,5 +394,51 @@ function MemberDetailModal({ member, onClose, isAdmin }: { member: MemberSummary
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Mot de passe oublié : un mot de passe provisoire, que le membre remplacera à sa prochaine connexion. */
+function ResetPassword({ member }: { member: MemberSummary }) {
+  const [confirming, setConfirming] = useState(false);
+  const reset = useMutation({
+    mutationFn: () => api.post<{ username: string; temporaryPassword: string }>(`/members/${member.id}/reset-password`),
+    onSuccess: () => toast.success('Nouveau mot de passe créé ✅'),
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le mot de passe n'a pas pu être changé."),
+  });
+  const c = reset.data;
+
+  return (
+    <div className="mt-6 border-t border-ink-300/30 pt-5">
+      <p className="label">Mot de passe</p>
+      {c ? (
+        <div className="space-y-3">
+          <div className="rounded-xl bg-mims-50 p-4">
+            <p className="font-mono text-sm text-mims-800">Identifiant : <b>{c.username}</b></p>
+            <p className="font-mono text-sm text-mims-800">Mot de passe : <b>{c.temporaryPassword}</b></p>
+            <p className="mt-2 text-xs text-ink-500">Il choisira son propre mot de passe à sa prochaine connexion.</p>
+          </div>
+          <InviteActions
+            message={[
+              `${member.firstName}, voici tes nouveaux identifiants Jeunes MIMS :`,
+              `Identifiant : ${c.username}`,
+              `Mot de passe provisoire : ${c.temporaryPassword}`,
+              'Tu choisiras ton propre mot de passe à la connexion.',
+            ].join('\n')}
+          />
+        </div>
+      ) : confirming ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="w-full text-sm text-ink-700">L'ancien mot de passe ne marchera plus. Continuer ?</p>
+          <button className="btn-primary !px-4 !py-2 text-xs" onClick={() => reset.mutate()} disabled={reset.isPending}>
+            {reset.isPending && <Spinner />} Oui, réinitialiser
+          </button>
+          <button className="btn-ghost !px-4 !py-2 text-xs" onClick={() => setConfirming(false)}>Annuler</button>
+        </div>
+      ) : (
+        <button className="btn-secondary !px-4 !py-2 text-xs" onClick={() => setConfirming(true)}>
+          Réinitialiser le mot de passe
+        </button>
+      )}
+    </div>
   );
 }
