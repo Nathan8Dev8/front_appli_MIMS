@@ -44,8 +44,8 @@ export function Topbar() {
 
     const fresh = notifications.filter((n) => n.status !== 'LU' && !knownUnreadIds.current!.has(n.id));
     if (fresh.length > 0) {
-      // Appareil abonné au push : la notification système sonne déjà, on ne double pas le son.
-      // Sinon (push refusé, non pris en charge…), c'est l'appli qui sonne.
+      // Appareil abonné au push : le son est déclenché par le message du service worker (ci-dessous).
+      // Sinon (push refusé, non pris en charge…), on le découvre ici au rechargement et c'est l'appli qui sonne.
       isPushSubscribed().then((subscribed) => {
         if (!subscribed) playNotificationChime();
       });
@@ -76,7 +76,10 @@ export function Topbar() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const onMessage = (e: MessageEvent) => {
-      if (e.data?.type === 'push') queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      if (e.data?.type === 'push') {
+        if (e.data.playSound) playNotificationChime();
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      }
       // Notification système touchée alors que l'appli était déjà ouverte : on va sur la page concernée.
       if (e.data?.type === 'navigate' && typeof e.data.url === 'string') {
         if (e.data.id) markRead(e.data.id);

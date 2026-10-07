@@ -36,9 +36,10 @@ self.addEventListener('fetch', (event) => {
 });
 
 // Affiche une vraie notification système, même si l'app est fermée (comme un
-// mail ou un message). Elle sonne TOUJOURS, appli ouverte ou non : aucune
-// notification ne doit passer inaperçue. Si l'app est ouverte, elle reçoit aussi
-// un message pour rafraîchir la liste (sans rejouer de son, cf. topbar).
+// mail ou un message). Appli ouverte à l'écran : c'est elle qui joue le son des
+// Jeunes MIMS (playSound), la notification système reste muette pour ne pas
+// imposer le son du téléphone. Appli fermée : le navigateur ne permet pas de
+// choisir le son, c'est celui des notifications du téléphone.
 self.addEventListener('push', (event) => {
   let data = { title: 'Jeunes MIMS', body: 'Tu as une nouvelle notification.', url: '/notifications' };
   try {
@@ -50,7 +51,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     (async () => {
       const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-      windows.forEach((c) => c.postMessage({ type: 'push', notification: data }));
+      const appVisible = windows.some((c) => c.visibilityState === 'visible');
+      windows.forEach((c) => c.postMessage({ type: 'push', notification: data, playSound: c.visibilityState === 'visible' }));
 
       // Pastille avec le nombre de non lus sur l'icône de l'appli installée.
       if (typeof data.unread === 'number' && self.navigator.setAppBadge) {
@@ -64,7 +66,7 @@ self.addEventListener('push', (event) => {
         tag: data.id || undefined, // une notification par message : elles ne s'écrasent plus
         renotify: Boolean(data.id),
         timestamp: Date.now(),
-        silent: false,
+        silent: appVisible,
         vibrate: [120, 60, 120, 60, 260], // signature de vibration (Android)
         data: { url: data.url || '/notifications', id: data.id },
       });
