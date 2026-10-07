@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
+import { api } from '@/lib/api-client';
 import { DesktopSidebar, MobileSidebar, MobileTabBar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { FullPageSpinner } from '@/components/ui/spinner';
@@ -26,6 +27,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace('/connexion/nouveau-mot-de-passe');
     }
   }, [hydrated, token, mustChangePassword, router]);
+
+  // Session glissante : chaque ouverture de l'appli repousse l'expiration du jeton.
+  useEffect(() => {
+    if (!hydrated || !useAuthStore.getState().token) return;
+    api
+      .post<{ accessToken: string }>('/auth/refresh')
+      .then((r) => useAuthStore.setState({ token: r.accessToken }))
+      .catch(() => {});
+  }, [hydrated]);
 
   if (!hydrated || !token || mustChangePassword) {
     return <FullPageSpinner />;
