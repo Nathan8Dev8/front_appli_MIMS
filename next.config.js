@@ -22,7 +22,13 @@ const nextConfig = {
   experimental: {
     // Fichiers lus sur le disque par l'API, à embarquer dans la fonction Vercel.
     outputFileTracingIncludes: {
-      '/api/[...path]': ['./assets/**', './node_modules/pdfkit/js/data/**'],
+      // argon2 et Prisma chargent leur binaire par un chemin calculé : Vercel ne le voit pas tout seul.
+      '/api/**': [
+        './assets/**',
+        './node_modules/pdfkit/js/data/**',
+        './node_modules/argon2/prebuilds/linux-x64/**',
+        './node_modules/.prisma/client/**',
+      ],
     },
   },
 };
