@@ -20,7 +20,7 @@ import type { ComplaintDetail, ComplaintPerson, ComplaintStatus } from '@/lib/ty
 const roleOf = (p: ComplaintPerson) => p.roles.map((r) => r.role.code).find((c) => c !== 'MEMBRE');
 
 export default function PlainteDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>()!;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: me } = useMe();

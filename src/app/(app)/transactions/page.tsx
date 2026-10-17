@@ -69,7 +69,7 @@ function TransactionsContent() {
   const [nature, setNature] = useState('');
   const [status, setStatus] = useState('');
   // Une période peut arriver de l'Historique (?from=…&to=…).
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams()!;
   const [from, setFrom] = useState(searchParams.get('from') ?? '');
   const [to, setTo] = useState(searchParams.get('to') ?? '');
   const [page, setPage] = useState(1);

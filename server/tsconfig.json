@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "strict": false,
+    "strictNullChecks": true,
+    "noImplicitAny": false,
+    "isolatedModules": false,
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": ["./**/*.ts", "../src/pages/api/**/*.ts"],
+  "exclude": []
+}

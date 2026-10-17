@@ -15,12 +15,15 @@ const nextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
-  images: {
-    remotePatterns: [
-      // Développement : fichiers servis par l'API NestJS locale.
-      // Production : remplacer par le domaine réel de l'API (ou du CDN/S3).
-      { protocol: 'http', hostname: 'localhost', port: '4000' },
-    ],
+  // Les fichiers (avatars, pièces jointes) gardent leur adresse /files/... enregistrée en base.
+  async rewrites() {
+    return [{ source: '/files/:path*', destination: '/api/files/:path*' }];
+  },
+  experimental: {
+    // Fichiers lus sur le disque par l'API, à embarquer dans la fonction Vercel.
+    outputFileTracingIncludes: {
+      '/api/[...path]': ['./assets/**', './node_modules/pdfkit/js/data/**'],
+    },
   },
 };
 

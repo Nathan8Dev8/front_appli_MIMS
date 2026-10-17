@@ -16,7 +16,7 @@ import { formatDate, formatDateTime } from '@/lib/format';
 import type { QuizAnswer, QuizDetail, QuizQuestion, QuizResults } from '@/lib/types';
 
 export default function QuizDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>()!;
   const router = useRouter();
   const { data: me } = useMe();
   const isManager = hasRole(me, QUIZ_MANAGER_ROLES);

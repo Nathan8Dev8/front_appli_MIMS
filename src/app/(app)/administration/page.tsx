@@ -43,7 +43,7 @@ type AdminTab = 'roles' | 'retours' | 'audit';
 
 function AdministrationContent() {
   // ?tab=retours : ouverture directe depuis la notification d'un nouveau signalement.
-  const initial = useSearchParams().get('tab');
+  const initial = useSearchParams()!.get('tab');
   const [tab, setTab] = useState<AdminTab>(initial === 'retours' || initial === 'audit' ? initial : 'roles');
   const { data: feedback } = useQuery({ queryKey: ['feedback', 'all'], queryFn: () => api.get<AppFeedback[]>('/feedback') });
   const newCount = (feedback ?? []).filter((f) => f.status === 'NOUVEAU').length;

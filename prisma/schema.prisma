@@ -1,0 +1,774 @@
+// Jeunes MIMS — Schéma de données (PostgreSQL / Prisma)
+// Reflète le MCD/MLD du cahier des charges (section 3 & 4).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Connexion directe (non poolée) utilisée uniquement pour les migrations —
+  // le pooler PgBouncer de Neon ne supporte pas les verrous que Prisma pose
+  // pendant `migrate dev` / `migrate deploy`.
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+// ————————————————————————————————————————————————————————————
+// Identité & accès
+// ————————————————————————————————————————————————————————————
+
+enum MemberStatus {
+  ACTIF
+  INACTIF
+  SUSPENDU
+  DEMISSIONNAIRE
+}
+
+enum PreferredChannel {
+  PUSH
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+model Member {
+  id               String           @id @default(uuid())
+  memberCode       String           @unique @map("member_code")
+  firstName        String           @map("first_name")
+  lastName         String           @map("last_name")
+  phone            String
+  email            String?
+  address          String?
+  birthDate        DateTime?        @map("birth_date")
+  avatarUrl        String?          @map("avatar_url")
+  joinedAt         DateTime         @default(now()) @map("joined_at")
+  status           MemberStatus     @default(ACTIF)
+  whatsappActive   Boolean          @default(false) @map("whatsapp_active")
+  preferredChannel PreferredChannel @default(PUSH) @map("preferred_channel")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  account                UserAccount?
+  roles                  MemberRole[]
+  dues                   MonthlyDue[]
+  payments               Payment[]            @relation("MemberPayments")
+  enteredPayments        Payment[]            @relation("PaymentEnteredBy")
+  createdCollectes       Collecte[]           @relation("CollecteCreatedBy")
+  enteredExpenses        Expense[]            @relation("ExpenseEnteredBy")
+  eventParticipations    EventParticipation[]
+  votes                  Vote[]
+  notifications          Notification[]
+  onboarding             Onboarding?
+  publishedDocuments     Document[]           @relation("DocumentPublishedBy")
+  createdEvents          Event[]              @relation("EventCreatedBy")
+  createdEventSeries     EventSeries[]        @relation("EventSeriesCreatedBy")
+  publishedAnnouncements Announcement[]       @relation("AnnouncementPublishedBy")
+  pushSubscriptions      PushSubscription[]
+  quizAttempts           QuizAttempt[]
+  complaints             Complaint[]          @relation("ComplaintAuthor")
+  complaintMessages      ComplaintMessage[]   @relation("ComplaintMessageAuthor")
+  appFeedback            AppFeedback[]        @relation("FeedbackAuthor")
+
+  @@index([phone])
+  @@index([status])
+  @@map("members")
+}
+
+model UserAccount {
+  id                 String    @id @default(uuid())
+  memberId           String    @unique @map("member_id")
+  member             Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  username           String    @unique
+  passwordHash       String    @map("password_hash")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  lastLoginAt        DateTime? @map("last_login_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@map("user_accounts")
+}
+
+enum RoleCode {
+  MEMBRE
+  SECRETAIRE
+  TRESORIER
+  PRESIDENT_ADMIN
+  PASTEUR_ENCADREUR
+}
+
+model Role {
+  id      String       @id @default(uuid())
+  code    RoleCode     @unique
+  label   String
+  members MemberRole[]
+
+  @@map("roles")
+}
+
+model MemberRole {
+  memberId  String    @map("member_id")
+  roleId    String    @map("role_id")
+  actif     Boolean   @default(true)
+  startedAt DateTime  @default(now()) @map("started_at")
+  endedAt   DateTime? @map("ended_at")
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, roleId])
+  @@map("member_roles")
+}
+
+// ————————————————————————————————————————————————————————————
+// Finances : cotisations, paiements, reçus
+// ————————————————————————————————————————————————————————————
+
+enum DueStatus {
+  A_PAYER
+  PARTIEL
+  PAYE
+  ANNULE
+}
+
+model MonthlyDue {
+  id         String    @id @default(uuid())
+  memberId   String    @map("member_id")
+  dueMonth   DateTime  @map("due_month") // premier jour du mois concerné
+  amountDue  Int       @map("amount_due") // FCFA
+  amountPaid Int       @default(0) @map("amount_paid")
+  balance    Int       @map("balance")
+  status     DueStatus @default(A_PAYER)
+  dueDate    DateTime  @map("due_date")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  member      Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  allocations PaymentAllocation[]
+
+  @@unique([memberId, dueMonth])
+  @@map("monthly_dues")
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY
+  VIREMENT
+  AUTRE
+}
+
+enum PaymentStatus {
+  EN_ATTENTE
+  VALIDE
+  ANNULE
+}
+
+// Nature d'une entrée d'argent en caisse.
+enum PaymentNature {
+  COTISATION // cotisation mensuelle (500 FCFA de base, montant libre)
+  INSCRIPTION // frais d'inscription (1 000 FCFA de base)
+  COLLECTE // contribution à une collecte (mariage, naissance, deuil…)
+}
+
+model Payment {
+  id           String        @id @default(uuid())
+  paymentRef   String        @unique @map("payment_ref")
+  memberId     String        @map("member_id")
+  amount       Int
+  method       PaymentMethod
+  status       PaymentStatus @default(EN_ATTENTE)
+  paidAt       DateTime      @default(now()) @map("paid_at")
+  enteredById  String        @map("entered_by")
+  reversalOfId String?       @map("reversal_of")
+  note         String?
+  nature       PaymentNature @default(COTISATION)
+  collecteId   String?       @map("collecte_id")
+
+  collecte    Collecte?           @relation(fields: [collecteId], references: [id])
+  member      Member              @relation("MemberPayments", fields: [memberId], references: [id])
+  enteredBy   Member              @relation("PaymentEnteredBy", fields: [enteredById], references: [id])
+  reversalOf  Payment?            @relation("PaymentReversal", fields: [reversalOfId], references: [id])
+  reversals   Payment[]           @relation("PaymentReversal")
+  allocations PaymentAllocation[]
+  receipt     Receipt?
+
+  @@index([nature])
+  @@index([paidAt])
+  @@index([collecteId])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  paymentId       String @map("payment_id")
+  dueId           String @map("due_id")
+  amountAllocated Int    @map("amount_allocated")
+
+  payment Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  due     MonthlyDue @relation(fields: [dueId], references: [id], onDelete: Cascade)
+
+  @@id([paymentId, dueId])
+  @@map("payment_allocations")
+}
+
+model Receipt {
+  id          String   @id @default(uuid())
+  paymentId   String   @unique @map("payment_id")
+  receiptNo   String   @unique @map("receipt_no")
+  storageKey  String   @map("storage_key")
+  sha256      String
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("receipts")
+}
+
+// Collecte exceptionnelle pour un événement de la vie d'un membre. Les
+// contributions sont des Payment (nature COLLECTE), la remise du montant
+// collecté au bénéficiaire est une sortie de caisse (Expense REMISE_COLLECTE).
+enum CollecteKind {
+  MARIAGE
+  NAISSANCE
+  DECES
+  AUTRE
+}
+
+enum CollecteStatus {
+  OUVERTE
+  CLOTUREE
+}
+
+model Collecte {
+  id          String         @id @default(uuid())
+  title       String
+  kind        CollecteKind
+  beneficiary String?
+  description String?
+  status      CollecteStatus @default(OUVERTE)
+  createdById String         @map("created_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  closedAt    DateTime?      @map("closed_at")
+
+  createdBy Member    @relation("CollecteCreatedBy", fields: [createdById], references: [id])
+  payments  Payment[]
+  expenses  Expense[]
+
+  @@index([status])
+  @@map("collectes")
+}
+
+// Sortie de caisse (dépense ou remise d'une collecte). Jamais supprimée :
+// une erreur se corrige par annulation motivée (status ANNULE).
+enum ExpenseCategory {
+  REMISE_COLLECTE
+  FONCTIONNEMENT
+  ACTIVITE
+  AUTRE_DEPENSE
+}
+
+enum ExpenseStatus {
+  VALIDE
+  ANNULE
+}
+
+model Expense {
+  id           String          @id @default(uuid())
+  expenseRef   String          @unique @map("expense_ref")
+  amount       Int
+  category     ExpenseCategory
+  label        String
+  method       PaymentMethod   @default(CASH)
+  spentAt      DateTime        @default(now()) @map("spent_at")
+  collecteId   String?         @map("collecte_id")
+  note         String?
+  status       ExpenseStatus   @default(VALIDE)
+  cancelReason String?         @map("cancel_reason")
+  cancelledAt  DateTime?       @map("cancelled_at")
+  enteredById  String          @map("entered_by")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  collecte  Collecte? @relation(fields: [collecteId], references: [id])
+  enteredBy Member    @relation("ExpenseEnteredBy", fields: [enteredById], references: [id])
+
+  @@index([spentAt])
+  @@index([category])
+  @@index([collecteId])
+  @@map("expenses")
+}
+
+// ————————————————————————————————————————————————————————————
+// Documents (PV, règlement...)
+// ————————————————————————————————————————————————————————————
+
+enum DocumentType {
+  REGLEMENT
+  PV
+  ASSISE // rapport d'assise, toujours rattaché à un événement de type ASSISE
+  AUTRE
+}
+
+enum DocumentStatus {
+  BROUILLON
+  PUBLIE
+  ARCHIVE
+}
+
+model Document {
+  id            String         @id @default(uuid())
+  documentCode  String         @unique @map("document_code")
+  type          DocumentType
+  title         String
+  description   String?
+  documentDate  DateTime?      @map("document_date")
+  storageKey    String         @map("storage_key")
+  sha256        String
+  status        DocumentStatus @default(BROUILLON)
+  publishedAt   DateTime?      @map("published_at")
+  publishedById String?        @map("published_by")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  publishedBy Member?      @relation("DocumentPublishedBy", fields: [publishedById], references: [id])
+  onboardings Onboarding[]
+  reportFor   Event?       @relation("EventReport")
+
+  @@index([type])
+  @@index([status])
+  @@map("documents")
+}
+
+// Annonce du bureau : publication immédiate (pas de brouillon), réservée au
+// Pasteur/Encadreur, au Président/Admin et à la Secrétaire. Peut porter une
+// pièce jointe unique de tout type (image ou autre fichier), visible par
+// tous. Déclenche une notification à l'ensemble des membres actifs.
+model Announcement {
+  id               String   @id @default(uuid())
+  title            String
+  content          String
+  attachmentKey    String?  @map("attachment_key")
+  attachmentName   String?  @map("attachment_name")
+  attachmentMime   String?  @map("attachment_mime")
+  attachmentSha256 String?  @map("attachment_sha256")
+  publishedById    String   @map("published_by")
+  publishedAt      DateTime @default(now()) @map("published_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  publishedBy Member @relation("AnnouncementPublishedBy", fields: [publishedById], references: [id])
+
+  @@index([publishedAt])
+  @@map("announcements")
+}
+
+// ————————————————————————————————————————————————————————————
+// Animation : événements, sondages, quiz
+// ————————————————————————————————————————————————————————————
+
+enum EventStatus {
+  PLANIFIE
+  EN_COURS
+  TERMINE
+  ANNULE
+}
+
+// Une assise est un événement de type ASSISE : son compte rendu (ordre du
+// jour, présences réelles, décisions, PV) est porté par l'événement lui-même,
+// pour qu'une réunion n'existe qu'à un seul endroit.
+enum EventKind {
+  ASSISE
+  ACTIVITE
+  AUTRE
+}
+
+enum EventFrequency {
+  WEEKLY
+  MONTHLY_NTH
+  MONTHLY_DAY
+}
+
+// Événement récurrent (ex. « nuit de prière chaque dernier vendredi du mois à 22h ») :
+// chaque date est créée comme un Event ordinaire, un mois à l'avance (voir recurrence.ts).
+model EventSeries {
+  id          String         @id @default(uuid())
+  kind        EventKind      @default(ACTIVITE)
+  title       String
+  description String?
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  agenda      String?
+  frequency   EventFrequency
+  weekday     Int?
+  nth         Int?
+  monthDay    Int?           @map("month_day")
+  time        String
+  until       DateTime?
+  active      Boolean        @default(true)
+  createdById String         @map("created_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  createdBy Member  @relation("EventSeriesCreatedBy", fields: [createdById], references: [id])
+  events    Event[]
+
+  @@map("event_series")
+}
+
+model Event {
+  id               String      @id @default(uuid())
+  kind             EventKind   @default(ACTIVITE)
+  title            String
+  description      String?
+  location         String?
+  // Position exacte du lieu (choisie sur la carte), en degrés décimaux.
+  latitude         Float?
+  longitude        Float?
+  startsAt         DateTime    @map("starts_at")
+  endsAt           DateTime?   @map("ends_at")
+  status           EventStatus @default(PLANIFIE)
+  coverImageUrl    String?     @map("cover_image_url")
+  agenda           String?
+  decisions        String?
+  reportDocumentId String?     @unique @map("report_document_id")
+  seriesId         String?     @map("series_id")
+  createdById      String      @map("created_by")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  createdBy      Member               @relation("EventCreatedBy", fields: [createdById], references: [id])
+  reportDocument Document?            @relation("EventReport", fields: [reportDocumentId], references: [id])
+  series         EventSeries?         @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  participations EventParticipation[]
+
+  @@unique([seriesId, startsAt])
+  @@index([startsAt])
+  @@map("events")
+}
+
+enum RsvpResponse {
+  PRESENT
+  ABSENT
+  EN_ATTENTE
+}
+
+model EventParticipation {
+  eventId     String       @map("event_id")
+  memberId    String       @map("member_id")
+  response    RsvpResponse @default(EN_ATTENTE)
+  respondedAt DateTime?    @map("responded_at")
+  // Présence réelle, cochée après l'événement (null = pas encore pointé).
+  attended    Boolean?
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, memberId])
+  @@map("event_participations")
+}
+
+enum PollStatus {
+  OUVERT
+  CLOTURE
+}
+
+model Poll {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  anonymous   Boolean    @default(false)
+  opensAt     DateTime   @default(now()) @map("opens_at")
+  closesAt    DateTime?  @map("closes_at")
+  status      PollStatus @default(OUVERT)
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  options PollOption[]
+  votes   Vote[]
+
+  @@map("polls")
+}
+
+model PollOption {
+  id       String @id @default(uuid())
+  pollId   String @map("poll_id")
+  label    String
+  // Ordre de saisie par l'organisateur (affichage stable).
+  position Int    @default(0)
+
+  poll  Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes Vote[]
+
+  @@map("poll_options")
+}
+
+model Vote {
+  id       String   @id @default(uuid())
+  pollId   String   @map("poll_id")
+  optionId String   @map("option_id")
+  memberId String   @map("member_id")
+  votedAt  DateTime @default(now()) @map("voted_at")
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  member Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, memberId])
+  @@map("votes")
+}
+
+enum QuizStatus {
+  BROUILLON
+  PUBLIE
+  CLOTURE
+}
+
+// Un quiz par semaine. content.questions : { id, type: 'CHOIX' | 'TEXTE', question,
+// choices + correctIndexes (cases à cocher) ou answer (réponse écrite attendue) }.
+model Quiz {
+  id          String     @id @default(uuid())
+  title       String
+  // Petit mot du responsable pour les participants (consigne, encouragement…).
+  comment     String?
+  content     Json
+  status      QuizStatus @default(BROUILLON)
+  publishedAt DateTime?  @map("published_at")
+  closesAt    DateTime?  @map("closes_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  attempts QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  quizId      String   @map("quiz_id")
+  memberId    String   @map("member_id")
+  answers     Json // { [questionId]: number[] (cases cochées) | string (réponse écrite) }
+  // { [questionId]: true/false } : correction automatique, ajustable par un responsable.
+  results     Json     @default("{}")
+  score       Int
+  total       Int
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, memberId])
+  @@map("quiz_attempts")
+}
+
+// ————————————————————————————————————————————————————————————
+// Notifications & onboarding
+// ————————————————————————————————————————————————————————————
+
+enum NotificationType {
+  BIENVENUE
+  RAPPEL_COTISATION
+  RELANCE_DETTE
+  RECU
+  DOCUMENT_PUBLIE
+  EVENEMENT
+  SONDAGE
+  ANNIVERSAIRE
+  ANNONCE
+  AUTRE
+}
+
+enum NotificationChannel {
+  PUSH
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum NotificationStatus {
+  EN_ATTENTE
+  ENVOYE
+  ECHEC
+  LU
+}
+
+model Notification {
+  id                String              @id @default(uuid())
+  memberId          String              @map("member_id")
+  type              NotificationType
+  channel           NotificationChannel
+  title             String
+  content           String
+  // Page ouverte quand on touche la notification (ex. /evenements/<id>).
+  url               String?
+  status            NotificationStatus  @default(EN_ATTENTE)
+  providerMessageId String?             @map("provider_message_id")
+  sentAt            DateTime?           @map("sent_at")
+  readAt            DateTime?           @map("read_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([status])
+  @@map("notifications")
+}
+
+// Abonnement Web Push d'un appareil/navigateur donné pour un membre.
+// Un même membre peut avoir plusieurs appareils abonnés (téléphone,
+// ordinateur…) — chacun reçoit la notification indépendamment, même
+// si l'application n'est pas ouverte.
+model PushSubscription {
+  id        String   @id @default(uuid())
+  memberId  String   @map("member_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@map("push_subscriptions")
+}
+
+enum OnboardingStatus {
+  EN_ATTENTE
+  BIENVENUE_ENVOYEE
+  REGLEMENT_ENVOYE
+  TERMINE
+}
+
+model Onboarding {
+  id                   String           @id @default(uuid())
+  memberId             String           @unique @map("member_id")
+  regulationDocumentId String?          @map("regulation_document_id")
+  status               OnboardingStatus @default(EN_ATTENTE)
+  welcomeSentAt        DateTime?        @map("welcome_sent_at")
+  regulationSentAt     DateTime?        @map("regulation_sent_at")
+  // Le membre a lu et accepté le règlement depuis son écran de bienvenue.
+  completedAt          DateTime?        @map("completed_at")
+
+  member             Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  regulationDocument Document? @relation(fields: [regulationDocumentId], references: [id])
+
+  @@map("onboardings")
+}
+
+// ————————————————————————————————————————————————————————————
+// Audit — journal append-only
+// ————————————————————————————————————————————————————————————
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String?  @map("actor_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  occurredAt  DateTime @default(now()) @map("occurred_at")
+  beforeJson  Json?    @map("before_json")
+  afterJson   Json?    @map("after_json")
+  hashPrev    String   @map("hash_prev")
+  hashCurrent String   @map("hash_current")
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+// ————————————————————————————————————————————————————————————
+// Plaintes & suggestions (toujours nominatives)
+// Traitées par le Président et le Pasteur ; la catégorie BUREAU ne va qu'au Pasteur.
+// ————————————————————————————————————————————————————————————
+
+enum ComplaintKind {
+  PLAINTE
+  SUGGESTION
+}
+
+enum ComplaintCategory {
+  ACTIVITES
+  COTISATIONS
+  COMPORTEMENT
+  BUREAU
+  AUTRE
+}
+
+enum ComplaintStatus {
+  RECUE
+  EN_COURS
+  RESOLUE
+  CLASSEE
+}
+
+model Complaint {
+  id             String            @id @default(uuid())
+  reference      String            @unique
+  kind           ComplaintKind
+  category       ComplaintCategory
+  subject        String
+  description    String
+  status         ComplaintStatus   @default(RECUE)
+  authorId       String            @map("author_id")
+  attachmentKey  String?           @map("attachment_key")
+  attachmentName String?           @map("attachment_name")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  closedAt       DateTime?         @map("closed_at")
+  // Dernier rappel « sans réponse depuis 7 jours » envoyé aux responsables.
+  remindedAt     DateTime?         @map("reminded_at")
+
+  author   Member             @relation("ComplaintAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  messages ComplaintMessage[]
+
+  @@index([authorId])
+  @@index([status])
+  @@map("complaints")
+}
+
+// Fil d'échange ; newStatus trace un changement de statut (avec ou sans texte).
+model ComplaintMessage {
+  id          String           @id @default(uuid())
+  complaintId String           @map("complaint_id")
+  authorId    String           @map("author_id")
+  content     String?
+  newStatus   ComplaintStatus? @map("new_status")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  author    Member    @relation("ComplaintMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@map("complaint_messages")
+}
+
+// ————————————————————————————————————————————————————————————
+// Retours sur l'application (bugs, idées d'amélioration) — distincts des plaintes,
+// reçus par le Président / Administrateur.
+// ————————————————————————————————————————————————————————————
+
+enum FeedbackKind {
+  BUG
+  AMELIORATION
+}
+
+enum FeedbackStatus {
+  NOUVEAU
+  PRIS_EN_COMPTE
+  TERMINE
+  NON_RETENU
+}
+
+model AppFeedback {
+  id             String         @id @default(uuid())
+  kind           FeedbackKind
+  title          String
+  description    String
+  // Relevés automatiquement à l'envoi pour aider à reproduire le problème.
+  page           String?
+  device         String?
+  screenshotKey  String?        @map("screenshot_key")
+  screenshotName String?        @map("screenshot_name")
+  status         FeedbackStatus @default(NOUVEAU)
+  // Réponse de l'administrateur, visible par la personne.
+  adminNote      String?        @map("admin_note")
+  authorId       String         @map("author_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  author Member @relation("FeedbackAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("app_feedback")
+}

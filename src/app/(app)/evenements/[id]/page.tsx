@@ -33,7 +33,7 @@ import { formatDate } from '@/lib/format';
 import type { AppEvent, MemberSummary } from '@/lib/types';
 
 export default function EventDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>()!;
   const router = useRouter();
   const { data: me } = useMe();
   const isOrganizer = hasRole(me, ORGANIZER_ROLES);

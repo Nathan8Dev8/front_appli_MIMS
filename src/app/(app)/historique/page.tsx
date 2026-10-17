@@ -37,7 +37,7 @@ export default function HistoriquePage() {
 }
 
 function HistoriqueContent() {
-  const params = useSearchParams();
+  const params = useSearchParams()!;
   const { data: me } = useMe();
   const canSeeCaisse = hasRole(me, ['TRESORIER', 'PRESIDENT_ADMIN']);
 
