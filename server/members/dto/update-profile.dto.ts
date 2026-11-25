@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 /**
@@ -14,8 +15,10 @@ export class UpdateProfileDto {
   @IsOptional() @IsString()
   phone?: string;
 
+  // Champ vide = pas d'email (sinon IsEmail rejette "" et l'email devient obligatoire en pratique).
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsOptional() @IsEmail()
-  email?: string;
+  email?: string | null;
 
   @IsOptional() @IsString()
   address?: string;

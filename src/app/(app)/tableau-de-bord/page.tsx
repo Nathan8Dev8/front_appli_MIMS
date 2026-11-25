@@ -50,7 +50,7 @@ export default function DashboardPage() {
   const upcomingEvents = (events ?? []).filter((e) => !isPast(e) && !isCancelled(e)).slice(0, 3);
   const toComplete = (events ?? []).filter((e) => missingReport(e).length).length;
   const activeMembers = members?.filter((m) => m.status === 'ACTIF').length;
-  const latestDocument = [...(documents ?? [])].sort(
+  const latestDocument = (documents ?? []).filter((d) => d.status === 'PUBLIE').sort(
     (a, b) => new Date(b.publishedAt ?? b.createdAt).getTime() - new Date(a.publishedAt ?? a.createdAt).getTime(),
   )[0];
   const latestAnnouncement = announcements?.[0];
@@ -62,6 +62,8 @@ export default function DashboardPage() {
         title={`${greeting()} ${me?.firstName ?? ''}`}
         description="Ce qui se passe dans le groupe aujourd'hui."
       />
+
+      <QuickActions roles={me?.roles ?? []} />
 
       {onboarding && onboarding.status !== 'TERMINE' && (
         <Link
@@ -112,7 +114,7 @@ export default function DashboardPage() {
             tone={currentDue ? 'warning' : 'success'}
           />
         </Link>
-        <Link href="/documents" className="block">
+        <Link href={latestDocument ? `/documents/${latestDocument.id}` : '/documents'} className="block">
           <StatCard
             label="Dernier document"
             value={latestDocument ? latestDocument.title : 'Pas encore de document'}
@@ -217,4 +219,36 @@ function greeting() {
   if (hour < 12) return 'Bonjour';
   if (hour < 18) return 'Bon après-midi';
   return 'Bonsoir';
+}
+
+/** Les gestes les plus fréquents du rôle, en gros boutons dès l'accueil (rien pour un simple membre). */
+const QUICK_ACTIONS: { href: string; emoji: string; label: string; roles: string[] }[] = [
+  { href: '/membres?ajouter=1', emoji: '➕', label: 'Ajouter un membre', roles: ['SECRETAIRE', 'PRESIDENT_ADMIN'] },
+  { href: '/documents/nouveau-rapport', emoji: '✍️', label: 'Rapport de séance', roles: ['SECRETAIRE', 'PRESIDENT_ADMIN'] },
+  { href: '/cotisations', emoji: '💰', label: 'Encaisser un paiement', roles: ['TRESORIER', 'PRESIDENT_ADMIN'] },
+  { href: '/transactions', emoji: '🧾', label: 'Voir la caisse', roles: ['TRESORIER', 'PRESIDENT_ADMIN'] },
+  { href: '/annonces', emoji: '📢', label: 'Publier une annonce', roles: ['PASTEUR_ENCADREUR', 'PRESIDENT_ADMIN', 'SECRETAIRE'] },
+  { href: '/evenements', emoji: '📅', label: 'Prévoir un événement', roles: ['PASTEUR_ENCADREUR', 'PRESIDENT_ADMIN', 'SECRETAIRE'] },
+];
+
+function QuickActions({ roles }: { roles: string[] }) {
+  const actions = QUICK_ACTIONS.filter((a) => a.roles.some((r) => roles.includes(r)));
+  if (!actions.length) return null;
+  return (
+    <section className="mb-6" aria-label="Raccourcis">
+      <p className="mb-3 text-sm font-semibold text-ink-700">Que veux-tu faire ?</p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        {actions.map((a) => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className="card flex min-h-[5.5rem] flex-col items-start justify-between gap-2 p-4 transition hover:-translate-y-0.5 hover:shadow-hover"
+          >
+            <span className="text-2xl" aria-hidden="true">{a.emoji}</span>
+            <span className="text-sm font-semibold leading-tight text-ink-900">{a.label}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
 }

@@ -43,16 +43,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-mist-200">
-      <DesktopSidebar />
-      <MobileSidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="lg:pl-64">
+      <div className="print:hidden">
+        <DesktopSidebar />
+        <MobileSidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </div>
+      <div className="lg:pl-64 print:pl-0">
         <Topbar />
         <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-8 sm:pt-8 lg:pb-10">
           <PushOptInBanner />
           {children}
         </main>
       </div>
-      <MobileTabBar onOpenMenu={() => setMenuOpen(true)} />
+      <div className="print:hidden">
+        <MobileTabBar onOpenMenu={() => setMenuOpen(true)} />
+      </div>
       <EmojiAssist />
       <QuizPrompt />
       <FeedbackModal />

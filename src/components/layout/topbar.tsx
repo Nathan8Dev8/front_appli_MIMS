@@ -77,7 +77,27 @@ export function Topbar() {
     if (!('serviceWorker' in navigator)) return;
     const onMessage = (e: MessageEvent) => {
       if (e.data?.type === 'push') {
-        if (e.data.playSound) playNotificationChime();
+        // Son bloqué (iPhone revenu de veille sans toucher l'écran…) : on refait sonner la
+        // notification système avec le son du téléphone plutôt que de rester muet.
+        if (e.data.playSound) {
+          playNotificationChime().then((played) => {
+            const n = e.data.notification ?? {};
+            if (played || !n.id) return;
+            navigator.serviceWorker.ready
+              .then((reg) =>
+                reg.showNotification(n.title ?? 'Jeunes MIMS', {
+                  body: n.body,
+                  icon: '/icons/icon-192.png',
+                  badge: '/icons/badge-96.png',
+                  tag: n.id,
+                  renotify: true,
+                  silent: false,
+                  data: { url: n.url || '/notifications', id: n.id },
+                } as NotificationOptions),
+              )
+              .catch(() => undefined);
+          });
+        }
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
       }
       // Notification système touchée alors que l'appli était déjà ouverte : on va sur la page concernée.
@@ -111,7 +131,7 @@ export function Topbar() {
   }, [notifications, unread]);
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-ink-300/40 bg-mist-100/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur sm:px-8">
+    <header className="sticky top-0 z-20 flex h-16 print:hidden items-center justify-between border-b border-ink-300/40 bg-mist-100/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur sm:px-8">
       <Link href="/tableau-de-bord" className="flex items-center gap-2 lg:hidden">
         <Image src="/logo.png" alt="" width={28} height={28} />
         <span className="font-display text-base font-semibold tracking-tight text-ink-900">Jeunes MIMS</span>

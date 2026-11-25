@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { primeNotificationSound } from '@/lib/sound';
+import { applyLargeText, readLargeText } from '@/lib/text-size';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -18,6 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Débloque l'audio à chaque interaction : les navigateurs refusent de jouer un son
   // sans geste de l'utilisateur, et le remettent en pause quand l'appli passe en
   // arrière-plan (téléphone verrouillé, autre appli…). Un seul déblocage ne suffit pas.
+  useEffect(() => {
+    if (readLargeText()) applyLargeText(true);
+  }, []);
+
   useEffect(() => {
     const unlock = () => primeNotificationSound();
     window.addEventListener('pointerdown', unlock);

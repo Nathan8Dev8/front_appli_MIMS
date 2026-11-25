@@ -2,6 +2,7 @@ import { S3Upload } from '../common/storage/s3-upload.interceptor';
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -33,10 +34,14 @@ export class MembersController {
     return this.members.list(search, status);
   }
 
-  // Réservé au Président/Admin : la Secrétaire ne peut pas enregistrer de nouveaux membres.
+  // La Secrétaire et le Président/Admin enregistrent les nouveaux avec leur rôle.
+  // Seul un Président/Admin peut en créer un autre (sinon la Secrétaire pourrait se donner tous les droits).
   @Post()
-  @Roles(RoleCode.PRESIDENT_ADMIN)
+  @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
   create(@Body() dto: CreateMemberDto, @CurrentUser() user: AuthenticatedUser) {
+    if (dto.role === RoleCode.PRESIDENT_ADMIN && !user.roles.includes(RoleCode.PRESIDENT_ADMIN)) {
+      throw new ForbiddenException('Seul le Président/Admin peut créer un compte Président/Admin.');
+    }
     return this.members.create(dto, user.memberId);
   }
 
@@ -58,6 +63,13 @@ export class MembersController {
   @Roles(RoleCode.PRESIDENT_ADMIN)
   resetPassword(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.members.resetPassword(id, user.memberId);
+  }
+
+  // Membre suivi sans compte qui s'inscrit : on lui crée son accès sur sa fiche existante.
+  @Post(':id/account')
+  @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
+  createAccess(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.members.createAccess(id, user.memberId);
   }
 
   @Patch(':id/status')

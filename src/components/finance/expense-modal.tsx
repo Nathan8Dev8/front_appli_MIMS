@@ -110,7 +110,7 @@ export function ExpenseModal({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Montant (FCFA)</label>
-            <input type="number" min={1} step={1} className={`input ${tooHigh ? '!border-rose-400' : ''}`} value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            <input type="number" inputMode="numeric" min={1} step={1} className={`input ${tooHigh ? '!border-rose-400' : ''}`} value={amount} onChange={(e) => setAmount(e.target.value)} required />
             {tooHigh && <p className="mt-1.5 text-xs font-medium text-rose-600">Supérieur au solde de la caisse.</p>}
           </div>
           <div>

@@ -4,15 +4,14 @@ import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
-import { api, ApiError, downloadFile } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
 import { Tabs } from '@/components/ui/tabs';
-import { ChevronRightIcon, ClockIcon, DownloadIcon, FileTextIcon, SearchIcon, WalletIcon } from '@/components/ui/icons';
+import { ChevronRightIcon, ClockIcon, FileTextIcon, SearchIcon, WalletIcon } from '@/components/ui/icons';
 import { EVENT_KIND_LABELS, eventStats, isCancelled } from '@/lib/events';
 import { formatDate, formatFcfa } from '@/lib/format';
 import type { AppDocument, AppEvent, FinanceReport } from '@/lib/types';
@@ -271,10 +270,7 @@ function EntryRow({ entry }: { entry: Entry }) {
   if (entry.kind === 'document') {
     const { document } = entry;
     return (
-      <button
-        className={ROW}
-        onClick={() => downloadFile(`/documents/${document.id}/download`).catch((e) => toast.error(e instanceof ApiError ? e.message : "Le téléchargement n'a pas marché."))}
-      >
+      <Link href={`/documents/${document.id}`} className={ROW}>
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-mims-50 text-mims-700">
           <FileTextIcon width={20} height={20} />
         </div>
@@ -286,8 +282,8 @@ function EntryRow({ entry }: { entry: Entry }) {
             <span className="text-xs text-ink-500">{formatDate(entry.date)}</span>
           </div>
         </div>
-        <DownloadIcon width={18} height={18} className="shrink-0 text-mims-700" />
-      </button>
+        <ChevronRightIcon width={18} height={18} className="shrink-0 text-ink-500" />
+      </Link>
     );
   }
 

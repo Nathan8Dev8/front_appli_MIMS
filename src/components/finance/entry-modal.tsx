@@ -172,7 +172,7 @@ export function EntryModal({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Montant reçu (FCFA)</label>
-            <input type="number" min={1} step={1} className="input" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            <input type="number" inputMode="numeric" min={1} step={1} className="input" value={amount} onChange={(e) => setAmount(e.target.value)} required />
           </div>
           <div>
             <label className="label">Mode de paiement</label>

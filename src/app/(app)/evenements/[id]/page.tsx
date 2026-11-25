@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { api, ApiError, downloadFile } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -16,12 +17,10 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ClockIcon,
-  DownloadIcon,
   EditIcon,
   FileTextIcon,
   MapPinIcon,
   SearchIcon,
-  UploadIcon,
   UsersIcon,
 } from '@/components/ui/icons';
 import { EventFormModal } from '@/components/events/event-form-modal';
@@ -173,6 +172,7 @@ export default function EventDetailPage() {
                       <span key={m.id} className="flex items-center gap-2 rounded-full bg-mist-200 py-1 pl-1 pr-3 text-xs font-medium text-ink-700">
                         <Avatar firstName={m.firstName} lastName={m.lastName} avatarUrl={m.avatarUrl} size="sm" />
                         {m.firstName} {m.lastName}
+                        {m.status === 'DEMISSIONNAIRE' && <span className="text-ink-500">(n'est plus membre)</span>}
                       </span>
                     ))}
                   </div>
@@ -187,23 +187,25 @@ export default function EventDetailPage() {
 
           <Section
             title={event.kind === 'ASSISE' ? "📄 Rapport d'assise" : '📄 Procès-verbal'}
-            action={canUploadPv && <PvUploadButton eventId={event.id} replace={!!event.reportDocument} />}
+            action={
+              canUploadPv && (
+                <Link href={`/documents/nouveau-rapport?event=${event.id}`} className="btn-secondary !px-4 !py-2 text-xs">
+                  <EditIcon width={14} height={14} /> {event.reportDocument ? 'Remplacer' : 'Écrire ou importer'}
+                </Link>
+              )
+            }
           >
             {event.reportDocument ? (
-              <button
-                onClick={() =>
-                  downloadFile(`/documents/${event.reportDocument!.id}/download`).catch((e) =>
-                    toast.error(e instanceof ApiError ? e.message : "Le téléchargement n'a pas marché."),
-                  )
-                }
+              <Link
+                href={`/documents/${event.reportDocument.id}`}
                 className="flex w-full items-center gap-3 rounded-xl bg-mims-50/70 p-3 text-left transition hover:bg-mims-50"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-mims-700 shadow-soft">
                   <FileTextIcon width={18} height={18} />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-900">{event.reportDocument.title}</span>
-                <DownloadIcon width={18} height={18} className="shrink-0 text-mims-700" />
-              </button>
+                <span className="shrink-0 text-sm font-semibold text-mims-700">Lire</span>
+              </Link>
             ) : (
               <p className="text-sm text-ink-500">
                 {event.kind === 'ASSISE' ? 'Pas encore de rapport.' : 'Pas encore de PV.'}
@@ -245,6 +247,7 @@ function RsvpLists({ event, meId }: { event: AppEvent; meId?: string }) {
               <Avatar firstName={p.member!.firstName} lastName={p.member!.lastName} avatarUrl={p.member!.avatarUrl} size="sm" />
               <span className="truncate">
                 {p.member!.firstName} {p.member!.lastName}
+                {p.member!.status === 'DEMISSIONNAIRE' && <span className="text-ink-500"> (n'est plus membre)</span>}
                 {p.memberId === meId && <span className="text-ink-500"> (toi)</span>}
               </span>
             </li>
@@ -341,37 +344,6 @@ function DecisionsSection({ event, canEdit }: { event: AppEvent; canEdit: boolea
   );
 }
 
-function PvUploadButton({ eventId, replace }: { eventId: string; replace: boolean }) {
-  const invalidate = useInvalidateEvents();
-  const upload = useMutation({
-    mutationFn: (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      return api.post(`/events/${eventId}/report`, formData);
-    },
-    onSuccess: () => {
-      invalidate();
-      toast.success('Publié, tout le monde est prévenu ✅');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le PV n'a pas pu être envoyé."),
-  });
-
-  return (
-    <label className={`btn-secondary cursor-pointer !px-4 !py-2 text-xs ${upload.isPending ? 'pointer-events-none opacity-60' : ''}`}>
-      {upload.isPending ? <Spinner /> : <UploadIcon width={14} height={14} />}
-      {replace ? 'Remplacer' : 'Ajouter le fichier'}
-      <input
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) upload.mutate(file);
-          e.target.value = '';
-        }}
-      />
-    </label>
-  );
-}
 
 function CancelModal({ open, onClose, event }: { open: boolean; onClose: () => void; event: AppEvent }) {
   const invalidate = useInvalidateEvents();

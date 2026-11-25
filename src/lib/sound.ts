@@ -41,17 +41,18 @@ export function primeNotificationSound() {
   loadSound(ctx);
 }
 
-export async function playNotificationChime() {
+/** Joue le son ; renvoie false si le navigateur l'a bloqué (pour sonner autrement, voir topbar). */
+export async function playNotificationChime(): Promise<boolean> {
   const ctx = getContext();
   if (ctx) await ctx.resume().catch(() => undefined);
   const buffer = ctx ? await loadSound(ctx) : null;
   // Contexte resté en pause (appli revenue de l'arrière-plan…) : simple lecteur audio en secours.
   if (!ctx || !buffer || ctx.state !== 'running') {
-    await new Audio(SOUND_URL).play().catch(() => undefined);
-    return;
+    return new Audio(SOUND_URL).play().then(() => true, () => false);
   }
   const source = ctx.createBufferSource();
   source.buffer = buffer;
   source.connect(ctx.destination);
   source.start();
+  return true;
 }

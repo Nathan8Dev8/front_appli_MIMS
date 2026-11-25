@@ -22,6 +22,12 @@ export class AuthController {
     return this.auth.me(user.memberId);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('download-ticket')
+  downloadTicket(@CurrentUser() user: AuthenticatedUser, @Body('path') path: string) {
+    return this.auth.downloadTicket(user, path);
+  }
+
   // Renouvelé à chaque ouverture de l'appli : la session n'expire qu'après 90 j sans l'ouvrir.
   @UseGuards(JwtAuthGuard)
   @Post('refresh')

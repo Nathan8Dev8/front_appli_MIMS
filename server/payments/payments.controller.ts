@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { RoleCode } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -23,9 +23,14 @@ export class PaymentsController {
     return this.payments.listAll();
   }
 
+  // La Secrétaire peut encaisser une inscription, rien d'autre : le reste de la caisse est au Trésorier.
   @Post()
-  @Roles(RoleCode.TRESORIER, RoleCode.PRESIDENT_ADMIN)
+  @Roles(RoleCode.TRESORIER, RoleCode.PRESIDENT_ADMIN, RoleCode.SECRETAIRE)
   create(@Body() dto: CreatePaymentDto, @CurrentUser() user: AuthenticatedUser) {
+    const fullCashAccess = user.roles.includes(RoleCode.TRESORIER) || user.roles.includes(RoleCode.PRESIDENT_ADMIN);
+    if (!fullCashAccess && dto.nature !== 'INSCRIPTION') {
+      throw new ForbiddenException("La Secrétaire peut seulement enregistrer les frais d'inscription.");
+    }
     return this.payments.create(dto, user.memberId);
   }
 

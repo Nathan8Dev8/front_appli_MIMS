@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { api, ApiError, downloadFile } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DocumentStatusBadge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
-import { ArchiveIcon, ArrowRightIcon, DownloadIcon, EditIcon, FileTextIcon, PlusIcon, UploadIcon } from '@/components/ui/icons';
+import { ArchiveIcon, ArrowRightIcon, EditIcon, FileTextIcon, PlusIcon, UploadIcon } from '@/components/ui/icons';
 import { DOCUMENT_MANAGER_ROLES } from '@/lib/events';
 import { formatDate } from '@/lib/format';
 import type { AppDocument, AppEvent } from '@/lib/types';
@@ -19,7 +19,7 @@ import type { AppDocument, AppEvent } from '@/lib/types';
 const TYPE_LABELS: Record<string, string> = {
   REGLEMENT: 'Règlement intérieur',
   ASSISE: "Rapports d'assise",
-  PV: 'Procès-verbaux',
+  PV: 'Rapports de séance et procès-verbaux',
   AUTRE: 'Autres documents',
 };
 
@@ -53,18 +53,23 @@ export default function DocumentsPage() {
       <PageHeader
         eyebrow="Les papiers du groupe"
         title="Documents"
-        description="Le règlement intérieur, les rapports d'assise, les procès-verbaux et les autres documents en vigueur."
+        description="Le règlement, les rapports de séance et les autres papiers du groupe. Touche un document pour l'ouvrir."
         actions={
           canManage && (
-            <button
-              className="btn-primary"
-              onClick={() => {
-                setEditing(undefined);
-                setFormOpen(true);
-              }}
-            >
-              <PlusIcon width={16} height={16} /> Ajouter un document
-            </button>
+            <>
+              <Link href="/documents/nouveau-rapport" className="btn-primary">
+                <EditIcon width={16} height={16} /> Rapport de séance
+              </Link>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setEditing(undefined);
+                  setFormOpen(true);
+                }}
+              >
+                <PlusIcon width={16} height={16} /> Autre document
+              </button>
+            </>
           )
         }
       />
@@ -81,10 +86,7 @@ export default function DocumentsPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {group.items.map((doc) => (
                   <div key={doc.id} className="card animate-fade-up flex flex-col p-4 sm:p-5">
-                    <button
-                      className="flex items-start gap-3 text-left"
-                      onClick={() => downloadFile(`/documents/${doc.id}/download`).catch((e) => toast.error(e instanceof ApiError ? e.message : "Le téléchargement n'a pas marché."))}
-                    >
+                    <Link href={`/documents/${doc.id}`} className="flex items-start gap-3 text-left">
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-mims-50 text-mims-700">
                         <FileTextIcon width={20} height={20} />
                       </span>
@@ -96,8 +98,8 @@ export default function DocumentsPage() {
                           {formatDate(docDate(doc))}
                         </span>
                       </span>
-                      <DownloadIcon width={18} height={18} className="mt-1 shrink-0 text-mims-700" />
-                    </button>
+                      <span className="mt-0.5 shrink-0 rounded-full bg-mims-50 px-3 py-1 text-xs font-semibold text-mims-700">{doc.hasFile === false ? 'Lire' : 'Ouvrir'}</span>
+                    </Link>
 
                     {(doc.reportFor || canManage) && (
                       <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-ink-300/30 pt-3">

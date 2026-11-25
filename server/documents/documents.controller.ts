@@ -57,6 +57,22 @@ export class DocumentsController {
     return this.documents.upload(file, { type, title, description, documentDate, eventId: eventId || undefined }, user.memberId);
   }
 
+  @Post('written')
+  @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
+  write(
+    @Body() body: { type?: DocumentType; title: string; documentDate: string; contentHtml: string; eventId?: string; publish?: boolean },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const type = body.type ?? DocumentType.PV;
+    if (!Object.values(DocumentType).includes(type)) throw new BadRequestException('Type invalide.');
+    return this.documents.createWritten({ ...body, type, eventId: body.eventId || undefined, publish: body.publish === true }, user.memberId);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.documents.findOne(id, canSeeDrafts(user));
+  }
+
   @Post(':id/publish')
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
   publish(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -67,7 +83,7 @@ export class DocumentsController {
   @Roles(RoleCode.SECRETAIRE, RoleCode.PRESIDENT_ADMIN)
   update(
     @Param('id') id: string,
-    @Body() body: { type?: DocumentType; title?: string; description?: string; documentDate?: string; eventId?: string },
+    @Body() body: { type?: DocumentType; title?: string; description?: string; documentDate?: string; eventId?: string; contentHtml?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (body.type && !Object.values(DocumentType).includes(body.type)) throw new BadRequestException('Type invalide.');

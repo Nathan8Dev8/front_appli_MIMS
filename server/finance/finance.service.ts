@@ -55,7 +55,8 @@ export interface TransactionRow {
   cancelReason: string | null;
 }
 
-const fullName = (m?: { firstName: string; lastName: string } | null) => (m ? `${m.firstName} ${m.lastName}` : '—');
+const fullName = (m?: { firstName: string; lastName: string; status?: string } | null) =>
+  m ? `${m.firstName} ${m.lastName}`.trim() + (m.status === 'DEMISSIONNAIRE' ? " (n'est plus membre)" : '') : '—';
 const monthLabel = (d: Date) => d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 @Injectable()
@@ -302,11 +303,11 @@ export class FinanceService {
         ? this.prisma.payment.findMany({
             where: paymentWhere,
             include: {
-              member: { select: { firstName: true, lastName: true } },
+              member: { select: { firstName: true, lastName: true, status: true } },
               enteredBy: { select: { firstName: true, lastName: true } },
               collecte: { select: { title: true } },
               receipt: { select: { id: true } },
-              allocations: { include: { due: { select: { dueMonth: true } } } },
+              allocations: { include: { due: { select: { dueMonth: true, note: true } } } },
             },
           })
         : [],
@@ -328,9 +329,9 @@ export class FinanceService {
       if (p.nature === 'COTISATION') {
         detail = p.allocations.length
           ? p.allocations
-              .map((a) => a.due.dueMonth)
-              .sort((x, y) => x.getTime() - y.getTime())
-              .map(monthLabel)
+              .map((a) => a.due)
+              .sort((x, y) => x.dueMonth.getTime() - y.dueMonth.getTime())
+              .map((d) => d.note ?? monthLabel(d.dueMonth))
               .join(', ')
           : null;
       } else if (p.nature === 'INSCRIPTION') detail = "Frais d'inscription";
@@ -570,7 +571,7 @@ export class FinanceService {
     const [contributions, remittances] = await Promise.all([
       this.prisma.payment.findMany({
         where: { collecteId: id, status: 'VALIDE', amount: { gt: 0 } },
-        include: { member: { select: { id: true, firstName: true, lastName: true } } },
+        include: { member: { select: { id: true, firstName: true, lastName: true, status: true } } },
         orderBy: { paidAt: 'desc' },
       }),
       this.prisma.expense.findMany({ where: { collecteId: id, status: 'VALIDE' }, orderBy: { spentAt: 'desc' } }),

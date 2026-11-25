@@ -75,7 +75,27 @@ export class PaymentsService {
       after: payment,
     });
     // Tout encaissement est validé sur-le-champ : le membre reçoit son reçu (avec la nature du versement) automatiquement.
-    return this.confirm(payment.id, actorId);
+    const confirmed = await this.confirm(payment.id, actorId);
+    await this.notifyTreasurers(actorId, member, payment.amount, nature).catch((err) => this.logger.error('Trésorier non prévenu', err));
+    return confirmed;
+  }
+
+  /** Transparence de la caisse : le Trésorier est prévenu de tout encaissement fait par quelqu'un d'autre. */
+  private async notifyTreasurers(actorId: string, member: { firstName: string; lastName: string }, amount: number, nature: string) {
+    const [actor, treasurers] = await Promise.all([
+      this.prisma.member.findUnique({ where: { id: actorId }, select: { firstName: true } }),
+      this.prisma.memberRole.findMany({ where: { actif: true, role: { code: 'TRESORIER' }, memberId: { not: actorId } }, select: { memberId: true } }),
+    ]);
+    const what = nature === 'INSCRIPTION' ? "l'inscription" : nature === 'COLLECTE' ? 'la contribution à la collecte' : 'la cotisation';
+    for (const t of treasurers) {
+      await this.notifications.notifyMember(
+        t.memberId,
+        'AUTRE',
+        'Nouvel encaissement 💰',
+        `${actor?.firstName ?? 'Un membre du bureau'} a encaissé ${amount.toLocaleString('fr-FR')} F pour ${what} de ${member.firstName} ${member.lastName}.`,
+        '/transactions',
+      );
+    }
   }
 
   /**

@@ -139,6 +139,7 @@ model MonthlyDue {
   balance    Int       @map("balance")
   status     DueStatus @default(A_PAYER)
   dueDate    DateTime  @map("due_date")
+  note       String? // ex. « Reprise registre papier » : affiché à la place du mois
   createdAt  DateTime  @default(now()) @map("created_at")
 
   member      Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -318,8 +319,10 @@ model Document {
   title         String
   description   String?
   documentDate  DateTime?      @map("document_date")
-  storageKey    String         @map("storage_key")
-  sha256        String
+  // Fichier importé (storageKey + sha256) OU rapport écrit dans l'appli (contentHtml, assaini côté serveur).
+  storageKey    String?        @map("storage_key")
+  sha256        String?
+  contentHtml   String?        @map("content_html")
   status        DocumentStatus @default(BROUILLON)
   publishedAt   DateTime?      @map("published_at")
   publishedById String?        @map("published_by")

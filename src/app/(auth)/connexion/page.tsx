@@ -102,16 +102,16 @@ export default function ConnexionPage() {
               <p className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700">{error}</p>
             )}
 
-            <button type="submit" className="btn-primary w-full" disabled={loading}>
+            <button type="submit" className="btn-primary w-full !py-3 text-base" disabled={loading}>
               {loading && <Spinner />}
               Se connecter
             </button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-ink-500">
-            Tu n'as pas encore d'accès ? Demande-le au secrétariat à la prochaine rencontre,
-            <br />les comptes sont créés à la main.
-          </p>
+          <div className="mt-8 space-y-2 text-center text-sm text-ink-500">
+            <p><b className="text-ink-700">Mot de passe oublié ?</b> Demande au Président de t'en créer un nouveau.</p>
+            <p><b className="text-ink-700">Pas encore de compte ?</b> La Secrétaire ou le Président te l'ouvrent à la prochaine rencontre.</p>
+          </div>
         </div>
       </div>
     </div>

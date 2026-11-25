@@ -85,8 +85,10 @@ export function planCotisationAllocation(input: {
   let remaining = amount;
 
   const pay = (month: Date, kind: AllocationKind) => {
-    if (remaining <= 0 || (firstMonth && month.getTime() < firstMonth.getTime())) return;
+    if (remaining <= 0) return;
     const existing = byMonth.get(monthKey(month));
+    // Avant son arrivée on ne crée pas d'échéance ; une dette déjà enregistrée (reprise papier) reste due.
+    if (!existing && firstMonth && month.getTime() < firstMonth.getTime()) return;
     const balance = existing ? existing.balance : MONTHLY_DUE_AMOUNT;
     if (balance <= 0) return; // mois déjà réglé (ou annulé)
     const take = Math.min(remaining, balance);

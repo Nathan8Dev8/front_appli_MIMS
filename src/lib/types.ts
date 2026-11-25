@@ -12,6 +12,10 @@ export interface MemberSummary {
   joinedAt: string;
   roles?: { role: { code: string; label: string } }[];
   onboarding?: { status: 'EN_ATTENTE' | 'BIENVENUE_ENVOYEE' | 'REGLEMENT_ENVOYE' | 'TERMINE'; completedAt: string | null } | null;
+  /** Montant de l'inscription payée, ou null si elle ne l'est pas encore (liste des membres seulement). */
+  inscriptionPaid?: number | null;
+  /** false = suivi sans compte (pas inscrit dans l'appli). */
+  hasAccount?: boolean;
 }
 
 export interface MonthlyDue {
@@ -22,6 +26,7 @@ export interface MonthlyDue {
   amountPaid: number;
   balance: number;
   status: 'A_PAYER' | 'PARTIEL' | 'PAYE' | 'ANNULE';
+  note?: string | null;
   dueDate: string;
   member?: MemberSummary;
 }
@@ -59,6 +64,8 @@ export interface AppDocument {
   createdAt: string;
   /** Renseigné quand le document est le PV d'une assise / d'un événement. */
   reportFor?: { id: string } | null;
+  /** false : rapport écrit dans l'appli (pas de fichier à télécharger). */
+  hasFile?: boolean;
 }
 
 export interface EventParticipation {

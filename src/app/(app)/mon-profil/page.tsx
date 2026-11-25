@@ -15,6 +15,7 @@ import { formatDate } from '@/lib/format';
 import type { Me } from '@/hooks/use-me';
 import { PushSettings } from '@/components/notifications/push-settings';
 import { MyFeedback } from '@/components/feedback/my-feedback';
+import { applyLargeText, readLargeText } from '@/lib/text-size';
 
 export default function MonProfilPage() {
   const { data: me, isLoading } = useMe();
@@ -200,6 +201,8 @@ export default function MonProfilPage() {
         <PushSettings />
       </div>
 
+      <LargeTextCard />
+
       <div className="mt-6">
         <SecurityCard />
       </div>
@@ -257,5 +260,30 @@ function SecurityCard() {
         </button>
       </div>
     </form>
+  );
+}
+
+function LargeTextCard() {
+  const [on, setOn] = useState(readLargeText);
+  return (
+    <div className="card mt-6 flex animate-fade-up flex-wrap items-center justify-between gap-4 p-6 sm:p-8">
+      <div>
+        <h2 className="font-display text-lg font-semibold text-ink-900">🔎 Gros texte</h2>
+        <p className="text-sm text-ink-500">Agrandit les écritures dans toute l'appli, sur cet appareil.</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={() => {
+          applyLargeText(!on);
+          setOn(!on);
+        }}
+        className={`relative h-9 w-16 shrink-0 rounded-full transition ${on ? 'bg-mims-700' : 'bg-ink-300'}`}
+      >
+        <span className="sr-only">Gros texte</span>
+        <span className={`absolute top-1 h-7 w-7 rounded-full bg-white shadow transition-all ${on ? 'left-8' : 'left-1'}`} />
+      </button>
+    </div>
   );
 }

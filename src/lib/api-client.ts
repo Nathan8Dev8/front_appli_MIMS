@@ -78,8 +78,36 @@ export const api = {
     request<T>(path, { method: 'DELETE', ...(body !== undefined ? { body: JSON.stringify(body) } : {}) }),
 };
 
+function isIos() {
+  if (typeof navigator === 'undefined') return false;
+  // Les iPad récents se présentent comme un Mac : on les reconnaît à l'écran tactile.
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+/**
+ * Sur iPhone/iPad, Safari (et surtout l'appli installée sur l'écran d'accueil) ignore les
+ * téléchargements par lien `blob:` : rien ne se passe. On ouvre donc le fichier lui-même dans
+ * un onglet, avec un ticket de 2 min à la place de l'en-tête Authorization ; iOS l'affiche
+ * avec son bouton Partager (« Enregistrer dans Fichiers », WhatsApp…).
+ */
+async function openOnIos(path: string) {
+  // L'onglet doit s'ouvrir tout de suite, pendant le toucher : après une attente, iOS le bloque.
+  const tab = window.open('', '_blank');
+  try {
+    const [pathname, query] = path.split('?');
+    const { ticket } = await request<{ ticket: string }>('/auth/download-ticket', { method: 'POST', body: JSON.stringify({ path: pathname }) });
+    const url = `${API_URL}/api${pathname}?${query ? `${query}&` : ''}dl=${encodeURIComponent(ticket)}`;
+    if (tab) tab.location.href = url;
+    else window.location.href = url;
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}
+
 /** Télécharge un fichier protégé par le jeton (un simple lien <a> ne peut pas envoyer l'en-tête Authorization). */
 export async function downloadFile(path: string, filename?: string) {
+  if (isIos()) return openOnIos(path);
   const token = useAuthStore.getState().token;
   const res = await fetch(`${API_URL}/api${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (res.status === 401) useAuthStore.getState().logout();

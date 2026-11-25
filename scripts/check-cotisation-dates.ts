@@ -2,7 +2,7 @@
  * Vérifie la règle « cotisation le 2e dimanche du mois ».   npm run check:cotisation
  */
 import { strict as assert } from 'assert';
-import { firstOwedMonth, isOverdue, lastOverdueMonth, planCotisationAllocation, secondSundayUtc } from '../src/payments/cotisation-allocation';
+import { firstOwedMonth, isOverdue, lastOverdueMonth, planCotisationAllocation, secondSundayUtc } from '../server/payments/cotisation-allocation';
 
 const d = (s: string) => new Date(`${s}T12:00:00Z`);
 const day = (x: Date) => x.toISOString().slice(0, 10);
@@ -26,5 +26,12 @@ assert.equal(day(firstOwedMonth(d('2026-10-20'))), '2026-11-01');
 // Arrivé le 20 octobre, il verse 500 le jour même : ça paie novembre, pas octobre
 const steps = planCotisationAllocation({ amount: 500, refMonth: d('2026-10-01'), dues: [], firstMonth: firstOwedMonth(d('2026-10-20')) });
 assert.deepEqual(steps.map((s) => [day(s.dueMonth), s.amount]), [['2026-11-01', 500]]);
+
+// Reprise papier enregistrée avant son arrivée : le surplus la rembourse quand même
+const back = planCotisationAllocation({
+  amount: 2000, refMonth: d('2026-12-01'), firstMonth: d('2026-12-01'),
+  dues: [{ id: 'p', dueMonth: d('2026-09-01'), balance: 9500 }],
+});
+assert.deepEqual(back.map((s) => [day(s.dueMonth), s.amount]), [['2026-12-01', 500], ['2026-09-01', 1500]]);
 
 console.log('✅ Règle du 2e dimanche : tout est bon.');

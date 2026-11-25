@@ -36,7 +36,7 @@ const MEMBER_STATUS: Record<string, { label: string; variant: keyof typeof VARIA
   ACTIF: { label: 'Actif', variant: 'success' },
   INACTIF: { label: 'Inactif', variant: 'neutral' },
   SUSPENDU: { label: 'Suspendu', variant: 'danger' },
-  DEMISSIONNAIRE: { label: 'Démissionnaire', variant: 'neutral' },
+  DEMISSIONNAIRE: { label: "N'est plus membre", variant: 'neutral' },
 };
 
 const DOCUMENT_STATUS: Record<string, { label: string; variant: keyof typeof VARIANTS }> = {

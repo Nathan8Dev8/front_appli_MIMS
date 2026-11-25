@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { MOBILE_TABS, NAV_SECTIONS, NavSection, visibleNavItems } from '@/lib/nav';
 import { ROLE_LABELS, useAuthStore } from '@/store/auth-store';
-import { ChevronRightIcon, GridIcon, LogoutIcon, XIcon } from '@/components/ui/icons';
+import { GridIcon, LogoutIcon, XIcon } from '@/components/ui/icons';
 import { openFeedback } from '@/components/feedback/feedback';
 import { useNavBadges } from '@/hooks/use-notifications';
 
@@ -38,16 +38,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {(Object.keys(NAV_SECTIONS) as NavSection[]).map((section) => {
           const sectionItems = items.filter((i) => i.section === section);
           if (!sectionItems.length) return null;
-          const sectionCount = sectionItems.reduce((sum, i) => sum + (badges[i.href] ?? 0), 0);
-          // Groupe replié par défaut, sauf celui de la page en cours.
-          const hasActive = sectionItems.some((i) => isActive(pathname, i.href));
+          // Tout est toujours visible : rien à déplier pour trouver une page.
           return (
-            <details key={section} open={hasActive || undefined} className="group mb-2">
-              <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-3.5 py-2 text-[11px] font-bold uppercase tracking-widest text-mims-300/80 transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
-                <span className="flex-1">{NAV_SECTIONS[section]}</span>
-                <CountBubble count={sectionCount} className="group-open:hidden" />
-                <ChevronRightIcon width={14} height={14} className="transition-transform group-open:rotate-90" />
-              </summary>
+            <div key={section} className="mb-1">
+              <p className="px-3.5 pb-1 pt-2 text-[11px] font-bold uppercase tracking-widest text-mims-300/80">{NAV_SECTIONS[section]}</p>
               <div className="space-y-0.5 pb-2">
                 {sectionItems.map((item) => {
                   const active = isActive(pathname, item.href);
@@ -58,7 +52,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       href={item.href}
                       onClick={onNavigate}
                       aria-current={active ? 'page' : undefined}
-                      className={`group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                      className={`group flex items-center gap-3 rounded-xl px-3.5 py-2 text-[15px] font-medium transition-all duration-200 ${
                         active ? 'bg-white text-mims-800 shadow-hover' : 'text-mims-100/80 hover:bg-white/[0.08] hover:text-white'
                       }`}
                     >
@@ -69,7 +63,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                   );
                 })}
               </div>
-            </details>
+            </div>
           );
         })}
       </nav>

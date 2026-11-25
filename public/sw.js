@@ -38,8 +38,9 @@ self.addEventListener('fetch', (event) => {
 // Affiche une vraie notification système, même si l'app est fermée (comme un
 // mail ou un message). Appli ouverte à l'écran : c'est elle qui joue le son des
 // Jeunes MIMS (playSound), la notification système reste muette pour ne pas
-// imposer le son du téléphone. Appli fermée : le navigateur ne permet pas de
-// choisir le son, c'est celui des notifications du téléphone.
+// sonner deux fois ; si le son de l'appli est bloqué, l'appli la refait sonner
+// (même tag + renotify, voir topbar). Appli fermée : le navigateur ne permet pas
+// de choisir le son, c'est celui des notifications du téléphone.
 self.addEventListener('push', (event) => {
   let data = { title: 'Jeunes MIMS', body: 'Tu as une nouvelle notification.', url: '/notifications' };
   try {

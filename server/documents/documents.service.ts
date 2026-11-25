@@ -5,6 +5,28 @@ import { PrismaService } from '../database/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { AuditService } from '../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import sanitizeHtml from 'sanitize-html';
+
+/**
+ * Le texte d'un rapport écrit vient du navigateur : on ne garde que la mise en forme
+ * de l'éditeur (titres, gras, listes, couleurs, alignement…), jamais de script ni d'image distante.
+ */
+export function cleanReportHtml(html: string) {
+  return sanitizeHtml(html, {
+    allowedTags: ['p', 'h1', 'h2', 'h3', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'br', 'hr', 'span', 'a', 'mark', 'code', 'pre'],
+    allowedAttributes: { '*': ['style'], a: ['href', 'target', 'rel'] },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedStyles: {
+      '*': {
+        'text-align': [/^(left|right|center|justify)$/],
+        color: [/^#[0-9a-f]{3,8}$/i, /^rgba?\([\d\s.,%]+\)$/i],
+        'font-size': [/^\d{1,2}(px|pt|rem|em)$/],
+        'font-family': [/^[\w\s,'"-]+$/],
+      },
+    },
+    transformTags: { a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }) },
+  });
+}
 
 @Injectable()
 export class DocumentsService {
@@ -29,12 +51,12 @@ export class DocumentsService {
       where: { ...(type ? { type } : {}), status: { in: statuses } },
       orderBy: [{ documentDate: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
       include: { reportFor: { select: { id: true } } },
-    });
+    }).then((docs) => docs.map(({ contentHtml, storageKey, sha256, ...d }) => ({ ...d, hasFile: !!storageKey })));
   }
 
   async update(
     id: string,
-    meta: { type?: DocumentType; title?: string; description?: string; documentDate?: string; eventId?: string },
+    meta: { type?: DocumentType; title?: string; description?: string; documentDate?: string; eventId?: string; contentHtml?: string },
     actorId: string,
   ) {
     const before = await this.prisma.document.findUnique({ where: { id }, include: { reportFor: { select: { id: true } } } });
@@ -44,6 +66,7 @@ export class DocumentsService {
     const document = await this.prisma.document.update({
       where: { id },
       data: {
+        contentHtml: meta.contentHtml === undefined || !before.contentHtml ? undefined : cleanReportHtml(meta.contentHtml),
         type: meta.type,
         title: meta.title?.trim() || undefined,
         description: meta.description === undefined ? undefined : meta.description.trim() || null,
@@ -128,6 +151,40 @@ export class DocumentsService {
     return document;
   }
 
+  /** Rapport écrit directement dans l'appli (éditeur de texte), daté obligatoirement. */
+  async createWritten(
+    meta: { type: DocumentType; title: string; documentDate: string; contentHtml: string; eventId?: string; publish?: boolean },
+    actorId: string,
+  ) {
+    if (!meta.title?.trim()) throw new BadRequestException('Donne un titre au rapport.');
+    const date = meta.documentDate ? new Date(meta.documentDate) : null;
+    if (!date || Number.isNaN(date.getTime())) throw new BadRequestException('Indique la date de la séance.');
+    const contentHtml = cleanReportHtml(meta.contentHtml ?? '');
+    if (!sanitizeHtml(contentHtml, { allowedTags: [] }).trim()) throw new BadRequestException('Le rapport est vide.');
+    await this.checkAssiseLink(meta.type, meta.eventId);
+
+    const count = await this.prisma.document.count();
+    const documentCode = `DOC-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
+    const document = await this.prisma.document.create({
+      data: { documentCode, type: meta.type, title: meta.title.trim(), documentDate: date, contentHtml, status: 'BROUILLON' },
+    });
+    await this.audit.log({ actorId, action: 'WRITE_DOCUMENT', entityType: 'Document', entityId: document.id, after: { documentCode, title: document.title } });
+
+    if (meta.eventId) await this.linkToEvent(document.id, meta.eventId, actorId);
+    // Comme pour un fichier : rattaché à un événement, il est publié tout de suite.
+    return meta.publish || meta.eventId ? this.publish(document.id, actorId) : document;
+  }
+
+  async findOne(id: string, canSeeDrafts: boolean) {
+    const document = await this.prisma.document.findUnique({
+      where: { id },
+      include: { reportFor: { select: { id: true, title: true, kind: true } } },
+    });
+    if (!document || (document.status === 'BROUILLON' && !canSeeDrafts)) throw new NotFoundException('Document introuvable.');
+    const { storageKey, sha256, ...rest } = document;
+    return { ...rest, hasFile: !!storageKey };
+  }
+
   async publish(id: string, actorId: string) {
     const document = await this.prisma.document.update({
       where: { id },
@@ -166,6 +223,7 @@ export class DocumentsService {
     if (document.status === 'BROUILLON' && !canSeeDrafts) {
       throw new NotFoundException('Document introuvable.');
     }
-    return document;
+    if (!document.storageKey) throw new BadRequestException("Ce rapport a été écrit dans l'appli : ouvre-le pour le lire ou l'imprimer.");
+    return { ...document, storageKey: document.storageKey };
   }
 }

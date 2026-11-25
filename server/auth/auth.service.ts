@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../database/prisma.service';
@@ -63,6 +63,12 @@ export class AuthService {
 
   refresh(user: { memberId: string; username: string; roles: string[] }) {
     return { accessToken: this.jwt.sign({ sub: user.memberId, username: user.username, roles: user.roles }) };
+  }
+
+  /** Lien de téléchargement court (2 min, un seul chemin) : sur iPhone, le fichier s'ouvre dans le navigateur. */
+  downloadTicket(user: { memberId: string; username: string; roles: string[] }, path: string) {
+    if (typeof path !== 'string' || !/^\/[\w\-/.]+$/.test(path)) throw new BadRequestException('Chemin invalide.');
+    return { ticket: this.jwt.sign({ sub: user.memberId, username: user.username, roles: user.roles, dl: path }, { expiresIn: '2m' }) };
   }
 
   async changePassword(memberId: string, currentPassword: string, newPassword: string) {

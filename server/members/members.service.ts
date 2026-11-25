@@ -8,6 +8,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { DuesService } from '../dues/dues.service';
+import { PaymentsService } from '../payments/payments.service';
 
 const MAX_AVATAR_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo — marge confortable pour une photo de smartphone
 
@@ -28,6 +29,7 @@ export class MembersService {
     private readonly audit: AuditService,
     private readonly onboarding: OnboardingService,
     private readonly dues: DuesService,
+    private readonly payments: PaymentsService,
   ) {}
 
   async list(search?: string, status?: string) {
@@ -50,25 +52,32 @@ export class MembersService {
       include: {
         roles: { include: { role: true }, where: { actif: true } },
         onboarding: { select: { status: true, completedAt: true } },
+        account: { select: { id: true } },
+        payments: { where: { nature: 'INSCRIPTION', status: 'VALIDE', amount: { gt: 0 } }, select: { amount: true }, take: 1 },
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-    });
+    }).then((members) => members.map(({ payments, account, ...m }) => ({ ...m, hasAccount: !!account, inscriptionPaid: payments[0]?.amount ?? null })));
+  }
+
+  /** Identifiant unique + mot de passe provisoire, à changer à la première connexion. */
+  private async newAccount(firstName: string, lastName: string) {
+    const baseUsername = slugify(`${firstName}.${lastName}`) || `membre${randomBytes(2).toString('hex')}`;
+    let username = baseUsername;
+    let suffix = 1;
+    while (await this.prisma.userAccount.findUnique({ where: { username } })) {
+      username = `${baseUsername}${suffix++}`;
+    }
+    // 12 caractères aléatoires (≈ 72 bits).
+    const temporaryPassword = randomBytes(9).toString('base64url');
+    return { username, temporaryPassword, passwordHash: await argon2.hash(temporaryPassword) };
   }
 
   async create(dto: CreateMemberDto, actorId?: string) {
     const year = new Date().getFullYear();
     const count = await this.prisma.member.count();
     const memberCode = `JM-${year}-${String(count + 1).padStart(4, '0')}`;
-
-    const baseUsername = slugify(`${dto.firstName}.${dto.lastName}`) || `membre${count + 1}`;
-    let username = baseUsername;
-    let suffix = 1;
-    while (await this.prisma.userAccount.findUnique({ where: { username } })) {
-      username = `${baseUsername}${suffix++}`;
-    }
-    // 12 caractères aléatoires (≈ 72 bits), à changer obligatoirement à la première connexion.
-    const temporaryPassword = randomBytes(9).toString('base64url');
-    const passwordHash = await argon2.hash(temporaryPassword);
+    const withAccount = dto.withAccount !== false;
+    const access = withAccount ? await this.newAccount(dto.firstName, dto.lastName) : null;
 
     const memberRole = await this.prisma.role.upsert({
       where: { code: 'MEMBRE' },
@@ -87,13 +96,17 @@ export class MembersService {
         memberCode,
         firstName: dto.firstName,
         lastName: dto.lastName,
-        phone: dto.phone,
+        phone: dto.phone ?? '',
         email: dto.email,
         address: dto.address,
         birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
-        account: { create: { username, passwordHash, mustChangePassword: true } },
+        ...(access
+          ? {
+              account: { create: { username: access.username, passwordHash: access.passwordHash, mustChangePassword: true } },
+              onboarding: { create: {} },
+            }
+          : {}),
         roles: { create: roleIdsToAssign.map((roleId) => ({ roleId })) },
-        onboarding: { create: {} },
       },
       include: { account: true },
     });
@@ -110,9 +123,30 @@ export class MembersService {
     // (sinon le job du 1er créera sa première échéance le mois prochain).
     await this.dues.generateForMonth(member.joinedAt, member.id);
     // Le mot de bienvenue et le règlement l'attendront dans ses notifications dès sa première connexion.
-    await this.onboarding.start(member.id);
+    if (access) await this.onboarding.start(member.id);
 
-    return { ...member, temporaryPassword, username };
+    // Inscription payée sur place : elle entre en caisse tout de suite, avec son reçu.
+    if (dto.inscriptionAmount && actorId) {
+      await this.payments.create(
+        { memberId: member.id, amount: dto.inscriptionAmount, method: dto.inscriptionMethod ?? 'CASH', nature: 'INSCRIPTION' },
+        actorId,
+      );
+    }
+
+    return { ...member, temporaryPassword: access?.temporaryPassword ?? null, username: access?.username ?? null };
+  }
+
+  /** Membre enregistré sans compte qui s'inscrit enfin : il garde sa fiche et tout son historique. */
+  async createAccess(memberId: string, actorId: string) {
+    const member = await this.prisma.member.findUniqueOrThrow({ where: { id: memberId }, include: { account: true } });
+    if (member.account) throw new BadRequestException('Ce membre a déjà un compte. Utilise « Réinitialiser le mot de passe ».');
+    const { username, temporaryPassword, passwordHash } = await this.newAccount(member.firstName, member.lastName);
+    const account = await this.prisma.userAccount.create({
+      data: { memberId, username, passwordHash, mustChangePassword: true },
+    });
+    await this.onboarding.start(memberId);
+    await this.audit.log({ actorId, action: 'CREATE_ACCESS', entityType: 'UserAccount', entityId: account.id });
+    return { username, temporaryPassword };
   }
 
   async resetPassword(memberId: string, actorId: string) {
