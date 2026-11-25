@@ -28,6 +28,9 @@ const nextConfig = {
         './node_modules/pdfkit/js/data/**',
         './node_modules/argon2/prebuilds/linux-x64/**',
         './node_modules/.prisma/client/**',
+        // Paquets à condition « module-sync » (generator-function, async-function… via exceljs) :
+        // Node les charge par require.mjs, que le traçage de Vercel ne voit pas → l'API plantait au démarrage.
+        './node_modules/*/require.mjs',
       ],
     },
   },
