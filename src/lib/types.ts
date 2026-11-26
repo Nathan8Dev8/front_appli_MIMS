@@ -46,7 +46,7 @@ export interface Payment {
   status: 'EN_ATTENTE' | 'VALIDE' | 'ANNULE';
   paidAt: string;
   note?: string | null;
-  nature?: 'COTISATION' | 'INSCRIPTION' | 'COLLECTE';
+  nature?: 'COTISATION' | 'INSCRIPTION' | 'COLLECTE' | 'REPORT_PAPIER';
   member?: MemberSummary;
   receipt?: Receipt | null;
   allocations?: { due: MonthlyDue; amountAllocated: number }[];
@@ -225,6 +225,7 @@ export type TxNature =
   | 'INSCRIPTION'
   | 'COTISATION'
   | 'COLLECTE'
+  | 'REPORT_PAPIER'
   | 'REMISE_COLLECTE'
   | 'FONCTIONNEMENT'
   | 'ACTIVITE'

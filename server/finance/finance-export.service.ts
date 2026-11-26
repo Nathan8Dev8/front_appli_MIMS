@@ -7,12 +7,13 @@ export const NATURE_LABELS: Record<TxNature, string> = {
   INSCRIPTION: 'Inscription',
   COTISATION: 'Cotisation mensuelle',
   COLLECTE: 'Collecte',
+  REPORT_PAPIER: 'Report registre papier',
   REMISE_COLLECTE: 'Remise de collecte',
   FONCTIONNEMENT: 'Fonctionnement',
   ACTIVITE: 'Activité / événement',
   AUTRE_DEPENSE: 'Autre dépense',
 };
-const ENTRY_NATURES: TxNature[] = ['INSCRIPTION', 'COTISATION', 'COLLECTE'];
+const ENTRY_NATURES: TxNature[] = ['INSCRIPTION', 'COTISATION', 'COLLECTE', 'REPORT_PAPIER'];
 const EXIT_NATURES: TxNature[] = ['REMISE_COLLECTE', 'FONCTIONNEMENT', 'ACTIVITE', 'AUTRE_DEPENSE'];
 const METHOD_LABELS: Record<string, string> = { CASH: 'Espèces', MOBILE_MONEY: 'Mobile Money', VIREMENT: 'Virement', AUTRE: 'Autre' };
 const STATUS_LABELS: Record<string, string> = { VALIDE: 'Validé', ANNULE: 'Annulé', EN_ATTENTE: 'En attente' };

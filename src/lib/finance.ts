@@ -4,19 +4,21 @@ export const NATURE_LABELS: Record<TxNature, string> = {
   INSCRIPTION: 'Inscription',
   COTISATION: 'Cotisation',
   COLLECTE: 'Collecte',
+  REPORT_PAPIER: 'Report registre papier',
   REMISE_COLLECTE: 'Remise de collecte',
   FONCTIONNEMENT: 'Fonctionnement',
   ACTIVITE: 'Activité / événement',
   AUTRE_DEPENSE: 'Autre dépense',
 };
 
-export const ENTRY_NATURES: TxNature[] = ['INSCRIPTION', 'COTISATION', 'COLLECTE'];
+export const ENTRY_NATURES: TxNature[] = ['INSCRIPTION', 'COTISATION', 'COLLECTE', 'REPORT_PAPIER'];
 export const EXIT_NATURES: TxNature[] = ['REMISE_COLLECTE', 'FONCTIONNEMENT', 'ACTIVITE', 'AUTRE_DEPENSE'];
 
 export const NATURE_VARIANT: Record<TxNature, 'info' | 'success' | 'gold' | 'danger' | 'warning' | 'neutral'> = {
   INSCRIPTION: 'gold',
   COTISATION: 'info',
   COLLECTE: 'success',
+  REPORT_PAPIER: 'neutral',
   REMISE_COLLECTE: 'danger',
   FONCTIONNEMENT: 'warning',
   ACTIVITE: 'warning',

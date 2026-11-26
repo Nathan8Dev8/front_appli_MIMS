@@ -167,6 +167,7 @@ enum PaymentNature {
   COTISATION // cotisation mensuelle (500 FCFA de base, montant libre)
   INSCRIPTION // frais d'inscription (1 000 FCFA de base)
   COLLECTE // contribution à une collecte (mariage, naissance, deuil…)
+  REPORT_PAPIER // argent déjà en caisse avant l'appli (registre papier)
 }
 
 model Payment {

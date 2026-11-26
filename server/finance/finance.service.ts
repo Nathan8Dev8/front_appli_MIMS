@@ -18,7 +18,7 @@ import {
   monthKey,
 } from '../payments/cotisation-allocation';
 
-export const PAYMENT_NATURES = ['INSCRIPTION', 'COTISATION', 'COLLECTE'] as const;
+export const PAYMENT_NATURES = ['INSCRIPTION', 'COTISATION', 'COLLECTE', 'REPORT_PAPIER'] as const;
 export const EXPENSE_NATURES = ['REMISE_COLLECTE', 'FONCTIONNEMENT', 'ACTIVITE', 'AUTRE_DEPENSE'] as const;
 export const ALL_NATURES = [...PAYMENT_NATURES, ...EXPENSE_NATURES] as const;
 export type TxNature = (typeof ALL_NATURES)[number];
@@ -335,6 +335,7 @@ export class FinanceService {
               .join(', ')
           : null;
       } else if (p.nature === 'INSCRIPTION') detail = "Frais d'inscription";
+      else if (p.nature === 'REPORT_PAPIER') detail = p.note;
       else detail = p.collecte?.title ?? null;
       rows.push({
         id: p.id,

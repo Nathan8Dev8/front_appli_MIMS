@@ -1,0 +1,1 @@
+ALTER TYPE "PaymentNature" ADD VALUE 'REPORT_PAPIER';

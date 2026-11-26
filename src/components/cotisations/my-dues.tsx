@@ -136,7 +136,7 @@ export function MyDues() {
             {payments.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
                 <div>
-                  <p className="font-medium text-ink-900">{formatFcfa(p.amount)} · {methodLabel(p.method)}{p.nature && p.nature !== 'COTISATION' ? ` · ${p.nature === 'INSCRIPTION' ? 'Inscription' : 'Collecte'}` : ''}</p>
+                  <p className="font-medium text-ink-900">{formatFcfa(p.amount)} · {methodLabel(p.method)}{p.nature && p.nature !== 'COTISATION' ? ` · ${p.nature === 'INSCRIPTION' ? 'Inscription' : p.nature === 'REPORT_PAPIER' ? 'Report registre papier' : 'Collecte'}` : ''}</p>
                   <p className="text-xs text-ink-500">{formatDate(p.paidAt)} · Réf. {p.paymentRef}</p>
                 </div>
                 <div className="flex items-center gap-3">
