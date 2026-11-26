@@ -776,3 +776,15 @@ model AppFeedback {
   @@index([status])
   @@map("app_feedback")
 }
+
+// Actions envoyées depuis la file hors ligne du téléphone : la même clé renvoyée
+// (réseau coupé pendant l'envoi) rejoue la réponse au lieu de refaire l'action.
+// ponytail: jamais purgée, ajouter un nettoyage (> 30 jours) si la table grossit.
+model IdempotencyKey {
+  key       String   @id
+  done      Boolean  @default(false)
+  body      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_keys")
+}

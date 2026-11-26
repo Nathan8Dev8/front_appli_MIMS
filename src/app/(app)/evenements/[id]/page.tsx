@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { isQueued } from '@/lib/offline-queue';
 import { api, ApiError } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { Avatar } from '@/components/ui/avatar';
@@ -90,7 +91,7 @@ export default function EventDetailPage() {
 
           {!past && !cancelled && (
             <div>
-              <RsvpButtons eventId={event.id} mine={stats.mine} />
+              <RsvpButtons eventId={event.id} mine={stats.mine} title={event.title} />
               <p className="mt-2 text-xs text-ink-500">
                 {stats.coming} seront là · {stats.notComing} pas dispo
               </p>
@@ -425,10 +426,12 @@ function AttendanceModal({ open, onClose, event }: { open: boolean; onClose: () 
   }, [members, search, selected]);
 
   const save = useMutation({
-    mutationFn: () => api.put(`/events/${event.id}/attendance`, { presentMemberIds: [...selected] }),
-    onSuccess: () => {
+    mutationFn: () =>
+      api.offline.put(`/events/${event.id}/attendance`, { presentMemberIds: [...selected] }, `Présences (${selected.size}) — ${event.title}`),
+    onSuccess: (res) => {
       invalidate();
-      toast.success('Présences enregistrées ✅');
+      if (isQueued(res)) toast('Pas de réseau : enregistré sur ton téléphone, ce sera envoyé dès que la connexion revient.', { icon: '🕓', duration: 6000 });
+      else toast.success('Présences enregistrées ✅');
       close();
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Les présences n'ont pas pu être enregistrées."),

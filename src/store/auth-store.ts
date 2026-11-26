@@ -34,7 +34,15 @@ export const useAuthStore = create<AuthState>()(
       login: (token, member, mustChangePassword) => set({ token, member, mustChangePassword }),
       updateMember: (patch) => set((state) => ({ member: state.member ? { ...state.member, ...patch } : state.member })),
       clearMustChangePassword: () => set({ mustChangePassword: false }),
-      logout: () => set({ token: null, member: null, mustChangePassword: false }),
+      logout: () => {
+        // Les données gardées pour le hors-ligne ne restent pas sur un téléphone déconnecté.
+        try {
+          localStorage.removeItem('jeunes-mims-cache');
+        } catch {
+          // stockage indisponible
+        }
+        set({ token: null, member: null, mustChangePassword: false });
+      },
     }),
     {
       name: 'jeunes-mims-auth',

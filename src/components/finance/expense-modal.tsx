@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '@/lib/api-client';
+import { isQueued } from '@/lib/offline-queue';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { EXPENSE_CATEGORIES, METHODS, todayInputValue } from '@/lib/finance';
@@ -50,17 +51,18 @@ export function ExpenseModal({
 
   const record = useMutation({
     mutationFn: () =>
-      api.post('/finance/expenses', {
+      api.offline.post('/finance/expenses', {
         amount: amountNum,
         category,
         label: label.trim(),
         method,
         collecteId: collecteId || undefined,
-        spentAt: date !== todayInputValue() ? date : undefined,
+        spentAt: date, // date du jour gardée même si l'envoi part plus tard (hors ligne)
         note: note.trim() || undefined,
-      }),
-    onSuccess: () => {
-      toast.success(`Sortie de ${formatFcfa(amountNum)} enregistrée ✅`);
+      }, `Sortie ${formatFcfa(amountNum)} — ${label.trim()}`),
+    onSuccess: (res) => {
+      if (isQueued(res)) toast('Pas de réseau : enregistré sur ton téléphone, ce sera envoyé dès que la connexion revient.', { icon: '🕓', duration: 6000 });
+      else toast.success(`Sortie de ${formatFcfa(amountNum)} enregistrée ✅`);
       queryClient.invalidateQueries({ queryKey: ['finance'] });
       onClose();
     },

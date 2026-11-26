@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '@/lib/api-client';
+import { isQueued } from '@/lib/offline-queue';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
@@ -82,18 +83,19 @@ export function EntryModal({
 
   const record = useMutation({
     mutationFn: () =>
-      api.post<{ receipt: unknown }>('/payments', {
+      api.offline.post<{ receipt: unknown }>('/payments', {
         memberId,
         amount: amountNum,
         method,
         nature,
         collecteId: nature === 'COLLECTE' ? collecteId : undefined,
-        paidAt: paidAtParam ? date : undefined,
+        paidAt: date, // date du jour gardée même si l'envoi part plus tard (hors ligne)
         note: note.trim() || undefined,
         autoConfirm: true,
-      }),
+      }, `Encaissement ${formatFcfa(amountNum)} — ${member ? `${member.firstName} ${member.lastName}` : 'membre'}`),
     onSuccess: (res) => {
-      if (res?.receipt) toast.success(`${formatFcfa(amountNum)} encaissés, reçu envoyé à ${member?.firstName ?? 'le membre'} ✅`);
+      if (isQueued(res)) toast('Pas de réseau : enregistré sur ton téléphone, ce sera envoyé dès que la connexion revient.', { icon: '🕓', duration: 6000 });
+      else if (res?.receipt) toast.success(`${formatFcfa(amountNum)} encaissés, reçu envoyé à ${member?.firstName ?? 'le membre'} ✅`);
       else toast(`${formatFcfa(amountNum)} encaissés, mais le reçu n'a pas pu être créé. Régénère-le depuis Transactions.`, { icon: '⚠️', duration: 8000 });
       queryClient.invalidateQueries({ queryKey: ['finance'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });

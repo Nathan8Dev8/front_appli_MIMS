@@ -120,7 +120,7 @@ function EventCard({ event, meId }: { event: AppEvent; meId?: string }) {
 
       {!cancelled && (
         <div className="mt-4">
-          <RsvpButtons eventId={event.id} mine={mine} />
+          <RsvpButtons eventId={event.id} mine={mine} title={event.title} />
           <p className="mt-2 text-xs text-ink-500">{coming ? `${coming} personne${coming > 1 ? 's' : ''} seront là` : 'Sois le premier à répondre'}</p>
         </div>
       )}

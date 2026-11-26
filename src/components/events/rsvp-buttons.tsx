@@ -3,15 +3,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, ApiError } from '@/lib/api-client';
+import { isQueued } from '@/lib/offline-queue';
 import { CheckIcon, XIcon } from '@/components/ui/icons';
 
-export function RsvpButtons({ eventId, mine }: { eventId: string; mine?: string }) {
+export function RsvpButtons({ eventId, mine, title }: { eventId: string; mine?: string; title?: string }) {
   const queryClient = useQueryClient();
   const respond = useMutation({
-    mutationFn: (response: 'PRESENT' | 'ABSENT') => api.post(`/events/${eventId}/participation`, { response }),
-    onSuccess: () => {
+    mutationFn: (response: 'PRESENT' | 'ABSENT') =>
+      api.offline.post(`/events/${eventId}/participation`, { response }, `${response === 'PRESENT' ? 'Je serai là' : 'Pas dispo'}${title ? ` — ${title}` : ''}`),
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success("C'est noté 👍");
+      if (isQueued(res)) toast('Pas de réseau : enregistré sur ton téléphone, ce sera envoyé dès que la connexion revient.', { icon: '🕓', duration: 6000 });
+      else toast.success("C'est noté 👍");
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ta réponse n'a pas pu être enregistrée."),
   });

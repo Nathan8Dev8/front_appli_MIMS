@@ -4,6 +4,8 @@ import { ValidationPipe } from '@nestjs/common';
 import type { IncomingMessage, ServerResponse } from 'http';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { PrismaService } from './database/prisma.service';
+import { IdempotencyInterceptor } from './common/idempotency.interceptor';
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
 
@@ -18,6 +20,7 @@ async function createApp(): Promise<Handler> {
   if (process.env.CORS_ORIGIN) app.enableCors({ origin: process.env.CORS_ORIGIN.split(','), credentials: true });
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+  app.useGlobalInterceptors(new IdempotencyInterceptor(app.get(PrismaService)));
   const express = app.getHttpAdapter().getInstance();
   // Vraie adresse du visiteur (Vercel la met dans x-forwarded-for et empêche de la falsifier) :
   // sinon tout le monde partage la même limite de tentatives de connexion.

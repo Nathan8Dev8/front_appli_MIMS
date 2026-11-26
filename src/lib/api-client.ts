@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuthStore } from '@/store/auth-store';
+import { QUEUED, newKey, outbox, type QueuedAction } from '@/lib/offline-queue';
 
 // L'API est servie par le même site (route /api) : adresses relatives.
 export const API_URL = '';
@@ -67,7 +68,69 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return undefined as T;
 }
 
+/**
+ * Action possible sans réseau : envoyée tout de suite si possible, sinon rangée
+ * dans la file du téléphone (réponse QUEUED, voir isQueued) et envoyée plus tard.
+ * `label` est ce que la personne voit dans la liste « en attente d'envoi ».
+ */
+async function requestOffline<T>(method: string, path: string, body: unknown, label: string): Promise<T> {
+  const action: QueuedAction = {
+    key: newKey(),
+    method,
+    path,
+    body: JSON.stringify(body ?? {}),
+    label,
+    memberId: useAuthStore.getState().member?.id ?? '',
+    createdAt: Date.now(),
+  };
+  if (navigator.onLine) {
+    try {
+      return await request<T>(path, { method, body: action.body, headers: { 'Idempotency-Key': action.key } });
+    } catch (err) {
+      if (err instanceof ApiError) throw err; // le serveur a répondu : vraie erreur
+      // sinon le réseau a lâché (connexion annoncée mais absente) : on met en file
+    }
+  }
+  outbox.add(action);
+  return QUEUED as T;
+}
+
+let flushing = false;
+
+/** Envoie la file dans l'ordre. Renvoie le nombre d'actions passées. */
+export async function flushOutbox(): Promise<number> {
+  const me = useAuthStore.getState().member;
+  if (flushing || !navigator.onLine || !me || !useAuthStore.getState().token) return 0;
+  flushing = true;
+  let sent = 0;
+  try {
+    for (const action of outbox.list()) {
+      if (action.memberId !== me.id) continue; // action d'un autre compte sur ce téléphone
+      try {
+        await request(action.path, { method: action.method, body: action.body, headers: { 'Idempotency-Key': action.key } });
+        outbox.remove(action.key);
+        sent++;
+      } catch (err) {
+        // Refus définitif du serveur (déjà payé, sondage clos…) : on le signale et on passe à la suite.
+        if (err instanceof ApiError && err.status >= 400 && err.status < 500 && ![401, 408, 429].includes(err.status)) {
+          outbox.fail(action, err.message);
+          continue;
+        }
+        break; // réseau ou serveur indisponible : on réessaiera plus tard
+      }
+    }
+  } finally {
+    flushing = false;
+  }
+  return sent;
+}
+
 export const api = {
+  /** POST / PUT qui marchent sans réseau (caisse, présences, votes). */
+  offline: {
+    post: <T>(path: string, body: unknown, label: string) => requestOffline<T>('POST', path, body, label),
+    put: <T>(path: string, body: unknown, label: string) => requestOffline<T>('PUT', path, body, label),
+  },
   get: <T>(path: string) => request<T>(path, { method: 'GET' }),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body ?? {}) }),

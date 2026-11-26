@@ -8,6 +8,7 @@ import { DesktopSidebar, MobileSidebar, MobileTabBar } from '@/components/layout
 import { Topbar } from '@/components/layout/topbar';
 import { FullPageSpinner } from '@/components/ui/spinner';
 import { PushOptInBanner } from '@/components/notifications/push-opt-in-banner';
+import { OfflineBanner } from '@/components/layout/offline-banner';
 import { EmojiAssist } from '@/components/ui/emoji-assist';
 import { QuizPrompt } from '@/components/quiz/quiz-prompt';
 import { FeedbackModal } from '@/components/feedback/feedback';
@@ -50,6 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="lg:pl-64 print:pl-0">
         <Topbar />
         <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-8 sm:pt-8 lg:pb-10">
+          <OfflineBanner />
           <PushOptInBanner />
           {children}
         </main>

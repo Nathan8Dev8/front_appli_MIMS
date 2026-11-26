@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { isQueued } from '@/lib/offline-queue';
 import { api, ApiError } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { RequireRole } from '@/components/auth/require-role';
@@ -15,7 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PlusIcon, SearchIcon } from '@/components/ui/icons';
 import { STAFF_ROLES } from '@/lib/nav';
-import { METHODS, REGISTRATION_FEE } from '@/lib/finance';
+import { METHODS, REGISTRATION_FEE, todayInputValue } from '@/lib/finance';
 import { Tabs } from '@/components/ui/tabs';
 import { ROLE_LABELS } from '@/store/auth-store';
 import { formatDate, formatFcfa, formatMonth } from '@/lib/format';
@@ -655,13 +656,19 @@ function InscriptionBlock({ member, canCollect }: { member: MemberSummary; canCo
   const value = Math.floor(Number(amount)) || 0;
 
   const pay = useMutation({
-    mutationFn: () => api.post('/payments', { memberId: member.id, amount: value, method, nature: 'INSCRIPTION' }),
-    onSuccess: () => {
+    mutationFn: () =>
+      api.offline.post(
+        '/payments',
+        { memberId: member.id, amount: value, method, nature: 'INSCRIPTION', paidAt: todayInputValue() },
+        `Inscription ${formatFcfa(value)} — ${member.firstName} ${member.lastName}`,
+      ),
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
       queryClient.invalidateQueries({ queryKey: ['finance'] });
       setPaid(value);
       setOpen(false);
-      toast.success(`✅ ${formatFcfa(value)} enregistrés en caisse, reçu envoyé à ${member.firstName}`);
+      if (isQueued(res)) toast('Pas de réseau : enregistré sur ton téléphone, ce sera envoyé dès que la connexion revient.', { icon: '🕓', duration: 6000 });
+      else toast.success(`✅ ${formatFcfa(value)} enregistrés en caisse, reçu envoyé à ${member.firstName}`);
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Le paiement n'a pas été enregistré. Réessaie."),
   });

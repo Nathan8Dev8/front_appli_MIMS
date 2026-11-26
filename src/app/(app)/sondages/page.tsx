@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { isQueued } from '@/lib/offline-queue';
 import { api, ApiError } from '@/lib/api-client';
 import { useMe, hasRole } from '@/hooks/use-me';
 import { PageHeader } from '@/components/ui/page-header';
@@ -24,10 +25,12 @@ export default function SondagesPage() {
   const { data: polls, isLoading } = useQuery({ queryKey: ['polls'], queryFn: () => api.get<Poll[]>('/polls') });
 
   const vote = useMutation({
-    mutationFn: ({ pollId, optionId }: { pollId: string; optionId: string; changed: boolean }) => api.post(`/polls/${pollId}/votes`, { optionId }),
-    onSuccess: (_, { changed }) => {
+    mutationFn: ({ pollId, optionId, label }: { pollId: string; optionId: string; changed: boolean; label: string }) =>
+      api.offline.post(`/polls/${pollId}/votes`, { optionId }, label),
+    onSuccess: (res, { changed }) => {
       queryClient.invalidateQueries({ queryKey: ['polls'] });
-      toast.success(changed ? 'Vote modifié ✅' : 'Vote enregistré ✅');
+      if (isQueued(res)) toast('Pas de réseau : enregistré sur ton téléphone, ce sera envoyé dès que la connexion revient.', { icon: '🕓', duration: 6000 });
+      else toast.success(changed ? 'Vote modifié ✅' : 'Vote enregistré ✅');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Ton vote n'a pas pu être enregistré."),
   });
@@ -83,7 +86,7 @@ export default function SondagesPage() {
                         key={option.id}
                         disabled={poll.status !== 'OUVERT' || vote.isPending || mine}
                         aria-pressed={mine}
-                        onClick={() => vote.mutate({ pollId: poll.id, optionId: option.id, changed: !!poll.myOptionId })}
+                        onClick={() => vote.mutate({ pollId: poll.id, optionId: option.id, changed: !!poll.myOptionId, label: `Vote « ${option.label} » — ${poll.title}` })}
                         className={`group relative block w-full overflow-hidden rounded-xl border px-4 py-2.5 text-left text-sm transition hover:border-mims-400 disabled:cursor-default ${
                           mine ? 'border-mims-700 ring-1 ring-mims-700' : 'border-ink-300/40'
                         }`}
